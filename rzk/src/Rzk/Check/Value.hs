@@ -17,7 +17,8 @@
 -- checker's context.
 --
 -- Evaluation is the library's; this module gives it the elimination rules
--- (β, the projections, path induction, @let@, a @recOR@ whose guard the tope
+-- (β, the projections, path induction, @let@, ι-reduction of generated data
+-- eliminators, a @recOR@ whose guard the tope
 -- context entails, the lattice and flip operations of the cube layer, the
 -- connectives of the tope layer), the η laws of λ and pairs, what each
 -- binder adds to the context, how two nodes compare (subtyping in the
@@ -112,6 +113,7 @@ module Rzk.Check.Value
   , vrecBottom
     -- * Elimination
   , appValue
+  , collectValueSpine
   , firstValue
   , secondValue
   , codomainAt
@@ -827,11 +829,77 @@ appValue :: Distinct n => Scope n -> Context n -> Value n -> Value n -> Value n
 appValue scope ctx fun arg = NbE.eliminate fun $ \case
   VLambda env _ body -> evalScope scope ctx env body arg
   VRecBottom -> vrecBottom
-  NbE.Stuck fun' -> case asNeutral fun' of
-    Just neutral | Just (Family _ _ (Just shape)) <- familyOf (neutralType scope ctx neutral)
-                 , not (isTopShape shape) ->
-        topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
-    _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
+  NbE.Stuck fun' -> case tryDataElimStep scope ctx fun' arg of
+    Just stepped -> stepped
+    Nothing -> case asNeutral fun' of
+      Just neutral | Just (Family _ _ (Just shape)) <- familyOf (neutralType scope ctx neutral)
+                   , not (isTopShape shape) ->
+          topeAndValue (appValue scope ctx shape arg) (NbE.vnode (AppF fun' arg))
+      _ -> annotated scope ctx (NbE.vnode (AppF fun' arg))
+
+-- | The head and arguments of a value application spine, in application order.
+-- Annotations take no part in the spine; glued definitions unfold as needed.
+collectValueSpine :: Value n -> (Value n, [Value n])
+collectValueSpine = go []
+  where
+    go args value = case NbE.force value of
+      VAnn term _ -> go args term
+      VApp fun arg -> go (arg : args) fun
+      _ -> (value, args)
+
+-- | Fire the ι-rule when a generated eliminator receives a fully applied
+-- point constructor as its scrutinee. Recursive fields receive an induction
+-- hypothesis immediately after the field, as in the generated method types.
+tryDataElimStep
+  :: Distinct n
+  => Scope n -> Context n -> Value n -> Value n -> Maybe (Value n)
+tryDataElimStep scope ctx fun arg =
+  let (headValue, headArgs) = collectValueSpine fun
+      args = headArgs <> [arg]
+   in case NbE.force headValue of
+    NbE.VVar elimName -> case entryDataRole (lookupEntry elimName ctx) of
+      Just (DataRole dataType numParams (DataElimKind _md numMethods numIndices _kind))
+        | (prefix, rest) <- splitAt (numParams + 1 + numMethods) args
+        , (_indices, scrutinee : after) <- splitAt numIndices rest ->
+            let (conHead, conArgs) = collectValueSpine scrutinee
+             in case NbE.force conHead of
+              NbE.VVar conName -> case entryDataRole (lookupEntry conName ctx) of
+                Just (DataRole conDataType conNumParams (DataConKind PointCon conIndex conNumFields recPositions))
+                  | conDataType == dataType
+                  , length conArgs == conNumParams + conNumFields ->
+                      let method = prefix !! (numParams + 1 + conIndex)
+                          fields = drop conNumParams conArgs
+                          applyAll = foldl (appValue scope ctx)
+                          prefixArgs = prefix
+                          methodArgs = concat
+                            [ if j `notElem` recPositions
+                                then [field]
+                                else case NbE.force field of
+                                  VRecBottom -> [field, vrecBottom]
+                                  _ -> case fieldIndices field of
+                                    Just fieldIxs ->
+                                      [ field
+                                      , applyAll (NbE.vvar elimName)
+                                          (prefixArgs <> fieldIxs <> [field]) ]
+                                    Nothing -> panicImpossible
+                                      "a recursive constructor field has no datatype annotation"
+                            | (j, field) <- zip [0 ..] fields
+                            , let fieldIndices value
+                                    | numIndices == 0 = Just []
+                                    | otherwise = do
+                                        neutral <- asNeutral value
+                                        let (typeHead, typeArgs) =
+                                              collectValueSpine (neutralType scope ctx neutral)
+                                        case NbE.force typeHead of
+                                          NbE.VVar d | d == dataType ->
+                                            Just (drop conNumParams typeArgs)
+                                          _ -> Nothing
+                            ]
+                       in Just (applyAll method (methodArgs <> after))
+                _ -> Nothing
+              _ -> Nothing
+      _ -> Nothing
+    _ -> Nothing
 
 firstValue :: Value n -> Value n
 {-# INLINE firstValue #-}

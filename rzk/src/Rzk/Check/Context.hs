@@ -28,6 +28,11 @@ module Rzk.Check.Context
   , Unfolding (..)
     -- * Entries
   , EntryKind (..)
+  , DataRole (..)
+  , DataRoleKind (..)
+  , ConSort (..)
+  , ElimKind (..)
+  , bumpDataRoleParams
   , Entry (..)
   , localEntry
   , Section (..)
@@ -165,6 +170,34 @@ data EntryKind
     -- ^ a definition or postulate that survives the section
   deriving (Eq, Show)
 
+-- | The role an entry plays in a @#data@ declaration. Constructors and
+-- eliminators are opaque; their roles drive the ι-rule in "Rzk.Check.Value".
+data DataRole n = DataRole
+  { dataRoleDataType  :: Foil.Name n
+  , dataRoleNumParams :: Int
+  , dataRoleKind      :: DataRoleKind
+  }
+
+data DataRoleKind
+  = DataConKind ConSort Int Int [Int]
+    -- ^ sort, method index, number of fields, and recursive field positions
+  | DataElimKind TModality Int Int ElimKind
+    -- ^ modality, number of methods, number of indices, and eliminator kind
+
+data ConSort = PointCon | PathCon
+  deriving (Eq, Show)
+
+data ElimKind = ElimInd | ElimRec
+  deriving (Eq, Show)
+
+instance Foil.Sinkable DataRole where
+  sinkabilityProof rename role = role
+    { dataRoleDataType = rename (dataRoleDataType role) }
+
+bumpDataRoleParams :: DataRole n -> DataRole n
+bumpDataRoleParams role = role
+  { dataRoleNumParams = dataRoleNumParams role + 1 }
+
 -- | What is known about a name in scope.
 data Entry n = Entry
   { entryType     :: Value n
@@ -189,6 +222,8 @@ data Entry n = Entry
     -- reads its dependencies off and abstracts
   , entryValueCore :: Maybe (Core n)
     -- ^ a definition's body as elaborated
+  , entryDataRole :: Maybe (DataRole n)
+    -- ^ the entry's role in a @#data@ declaration, if any
   }
 
 instance Foil.Sinkable Entry where
@@ -198,6 +233,7 @@ instance Foil.Sinkable Entry where
     , entryUses = map rename (entryUses entry)
     , entryTypeCore = Foil.sinkabilityProof rename <$> entryTypeCore entry
     , entryValueCore = Foil.sinkabilityProof rename <$> entryValueCore entry
+    , entryDataRole = Foil.sinkabilityProof rename <$> entryDataRole entry
     }
 
 -- | The entry of a local name of a type.
@@ -213,6 +249,7 @@ localEntry md mname loc ty = Entry
   , entryUses = []
   , entryTypeCore = Nothing
   , entryValueCore = Nothing
+  , entryDataRole = Nothing
   }
 
 -- | An open section: its name, and the top-level entries made in it,

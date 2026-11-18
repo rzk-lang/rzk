@@ -120,6 +120,7 @@ module Rzk.Check.Syntax
   , substituteName
   , abstractName
   , containsHole
+  , containsUniverse
   , eqCore
   ) where
 
@@ -656,6 +657,15 @@ containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =
   bifoldr (\(ScopedAST _ body) acc -> containsHole body || acc)
           (\t acc -> containsHole t || acc) False sig
+
+-- | Does a constructor's non-recursive field probe mention @U@?
+containsUniverse :: Core n -> Bool
+containsUniverse Universe = True
+containsUniverse (Var _) = False
+containsUniverse (Ann t _) = containsUniverse t
+containsUniverse (Node sig) =
+  bifoldr (\(ScopedAST _ body) acc -> containsUniverse body || acc)
+          (\t acc -> containsUniverse t || acc) False sig
 
 -- | Syntactic equality of two core terms: conservative, as two α-equivalent
 -- terms whose binders differ are not equal, and cheaper than α-equivalence.

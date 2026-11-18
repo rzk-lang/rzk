@@ -100,6 +100,16 @@ data TypeError n
     -- ^ an operation and the two operand types, which are not interval cubes
   | TypeErrorRepeatedBinder VarIdent [VarIdent]
     -- ^ a repeated binder and its previous occurrences
+  | TypeErrorMatchScrutineeNotData (Core n) (Value n)
+    -- ^ a match scrutinee and its non-data type
+  | TypeErrorMatchCannotInfer (Raw n)
+    -- ^ a match without an explicit motive in inference position
+  | TypeErrorMatchMissingBranch VarIdent
+  | TypeErrorMatchDuplicateBranch VarIdent
+  | TypeErrorMatchUnknownBranch VarIdent [VarIdent]
+  | TypeErrorMatchBranchArity VarIdent Int Int
+  | TypeErrorReascribedTypeMismatch VarIdent (Value n) (Value n)
+    -- ^ a generated entry, its canonical type, and the user's re-ascription
 
 -- | The constructor name: the stable code of a diagnostic, and the tag the
 -- fixtures pin.
@@ -130,6 +140,13 @@ typeErrorTag = \case
   TypeErrorImplicitAssumption{}   -> "TypeErrorImplicitAssumption"
   TypeErrorNotIntervalCube{}      -> "TypeErrorNotIntervalCube"
   TypeErrorRepeatedBinder{}       -> "TypeErrorRepeatedBinder"
+  TypeErrorMatchScrutineeNotData{} -> "TypeErrorMatchScrutineeNotData"
+  TypeErrorMatchCannotInfer{}     -> "TypeErrorMatchCannotInfer"
+  TypeErrorMatchMissingBranch{}   -> "TypeErrorMatchMissingBranch"
+  TypeErrorMatchDuplicateBranch{} -> "TypeErrorMatchDuplicateBranch"
+  TypeErrorMatchUnknownBranch{}   -> "TypeErrorMatchUnknownBranch"
+  TypeErrorMatchBranchArity{}     -> "TypeErrorMatchBranchArity"
+  TypeErrorReascribedTypeMismatch{} -> "TypeErrorReascribedTypeMismatch"
 
 -- | An error with the context it was raised in. The scope is existential:
 -- the context says what the names are called.
@@ -265,6 +282,33 @@ ppTypeError scope ctx = \case
     , "  " <> ppVarIdentWithLocation name
     , "already bound at"
     , intercalate "\n" [ "  " <> ppVarIdentWithLocation prev | prev <- previous ] ]
+  TypeErrorMatchScrutineeNotData scrut ty -> block
+    [ "match scrutinee"
+    , "  " <> ppC scrut
+    , "is not of a #data type; its type is"
+    , "  " <> ppV ty ]
+  TypeErrorMatchCannotInfer term -> block
+    [ "cannot infer the type of match"
+    , "  " <> ppR term
+    , "a match without \"into\" is only allowed where its type is already known (checking position)" ]
+  TypeErrorMatchMissingBranch con ->
+    "match has no branch for constructor " <> show con
+  TypeErrorMatchDuplicateBranch con ->
+    "duplicate match branch for constructor " <> show con
+  TypeErrorMatchUnknownBranch con cons -> block
+    [ "match branch for " <> show con <> ", which is not a constructor of the scrutinee's type"
+    , case cons of
+        [] -> "the type has no constructors"
+        _  -> "the constructors are: " <> unwords (map show cons) ]
+  TypeErrorMatchBranchArity con expected actual -> block
+    [ "match branch for constructor " <> show con
+    , "binds " <> show actual <> " argument" <> (if actual == 1 then "" else "s")
+        <> ", but its method takes " <> show expected ]
+  TypeErrorReascribedTypeMismatch generatedName canonical actual -> block
+    [ "the re-ascribed type of " <> show generatedName
+    , "  " <> ppV actual
+    , "is not definitionally equal to its canonical type"
+    , "  " <> ppV canonical ]
   where
     naming = namingOfContext ctx
     ppV = ppValueIn scope ctx
@@ -401,6 +445,8 @@ data Warning
     -- ^ a binder, and the binding it shadows, each with where it was written
   | UnsupportedOptionWarning String (Maybe LocationInfo)
     -- ^ an option that the new checker accepts but does not implement
+  | LargeInductiveTypeWarning VarIdent VarIdent (Maybe LocationInfo)
+    -- ^ the datatype and the constructor whose field mentions @U@
   deriving (Eq, Show)
 
 -- | The stable code of a warning.
@@ -410,6 +456,7 @@ warningTag = \case
   TopeFamilyDomainWarning{} -> "TopeFamilyDomainWarning"
   ShadowingWarning{}        -> "ShadowingWarning"
   UnsupportedOptionWarning{} -> "UnsupportedOptionWarning"
+  LargeInductiveTypeWarning{} -> "LargeInductiveTypeWarning"
 
 warningLocation :: Warning -> Maybe LocationInfo
 warningLocation = \case
@@ -417,6 +464,7 @@ warningLocation = \case
   TopeFamilyDomainWarning _ _ loc -> loc
   ShadowingWarning _ _ loc        -> loc
   UnsupportedOptionWarning _ loc   -> loc
+  LargeInductiveTypeWarning _ _ loc -> loc
 
 ppWarning :: Warning -> String
 ppWarning = \case
@@ -436,6 +484,9 @@ ppWarning = \case
     , "previously bound at" ] <> map ("  " <>) previous
   UnsupportedOptionWarning name _ ->
     "Warning: option " <> show name <> " is not supported by the new checker yet and has no effect"
+  LargeInductiveTypeWarning _ conName _ ->
+    "Warning: large inductive type: a field of constructor " <> show conName
+      <> " mentions the universe U; predicatively, the inductive type lives above U"
 
 -- * Hints
 
