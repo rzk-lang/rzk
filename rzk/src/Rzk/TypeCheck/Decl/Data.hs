@@ -5,10 +5,10 @@
 -- | The surface-syntax scaffolding of @#data@ declarations, kept separate from
 -- the monadic checker in "Rzk.TypeCheck.Decl".
 --
--- Two things live here, both pure. First, small builders over the surface
--- syntax (@surfaceApps@, @surfacePi@, …) and the preprocessed forms of a
+-- Everything here is pure. Small builders over the surface syntax
+-- (@surfaceApps@, @surfacePi@, …) support validation and preprocessing of a
 -- declaration (the 'SortIndex' telescope and the 'DataConSurface'
--- constructors). Second, the construction of the generated eliminators: given
+-- constructors). The construction of the generated eliminators uses them: given
 -- an 'ElimSpec' — the declaration's data together with the fresh binders of the
 -- generated types and the validated endpoint images — 'elimTerms' produces the
 -- surface types of @ind-D@ and @rec-D@ and the path computation rules. The
@@ -16,14 +16,17 @@
 -- nothing here constructs core terms or touches the type-checking monad.
 module Rzk.TypeCheck.Decl.Data where
 
+import           Control.Monad      (forM, forM_, unless)
 import           Data.Data          (Data, cast)
+import           Data.List          (intercalate)
 import qualified Data.Text          as T
 
 import           Language.Rzk.Data      (foldData)
 import           Language.Rzk.Foil.Names (TModality (..),
                                            fromMod,
                                            fromTModalityToModalColon,
-                                           modalColonToTModality)
+                                           modalColonToTModality,
+                                           patternToTerm)
 import qualified Language.Rzk.Syntax as Rzk
 import           Rzk.TypeCheck.Context (ModeTheory (comp))
 import           Rzk.TypeCheck.Display (panicImpossible)
@@ -221,6 +224,265 @@ nthByConstruction what xs i = case drop i xs of
 -- | The 0-based positions of a constructor's directly recursive fields.
 recPositionsOf :: DataConSurface -> [Int]
 recPositionsOf = map fst . dataConRecursive
+
+-- * Declaration preprocessing
+
+-- | Surface parameters as binders of a declaration's type.
+paramDeclsOf :: Rzk.Param -> Either String [Rzk.ParamDecl]
+paramDeclsOf = \case
+  Rzk.ParamPatternShape loc pats cube tope ->
+    Right [ Rzk.ParamTermShape loc (patternToTerm pat) cube tope | pat <- pats ]
+  Rzk.ParamPatternType loc pats ty ->
+    Right [ Rzk.ParamTermType loc (patternToTerm pat) ty | pat <- pats ]
+  Rzk.ParamPattern{} -> Left "untyped pattern in parameters"
+  Rzk.ParamPatternModalType loc pats mc ty ->
+    Right [ Rzk.ParamTermModalType loc (patternToTerm pat) mc ty | pat <- pats ]
+  Rzk.ParamPatternModalShape loc pats mc cube tope ->
+    Right [ Rzk.ParamTermModalShape loc (patternToTerm pat) mc cube tope | pat <- pats ]
+
+-- | The index telescope of a sort: @U@, or plain type indices ending in @U@.
+dataSortIndices :: Rzk.DataSort -> Either String [SortIndex]
+dataSortIndices = \case
+  Rzk.NoDataSort _        -> pure []
+  Rzk.SomeDataSort _ sort -> go sort
+  where
+    go = \case
+      Rzk.Universe{} -> pure []
+      Rzk.TypeFun _ param ret       -> (:) <$> indexOf param <*> go ret
+      Rzk.ASCII_TypeFun _ param ret -> (:) <$> indexOf param <*> go ret
+      sort -> Left $
+        "the sort of a #data must be U, or an index telescope ending in U, got "
+          <> Rzk.printTree sort
+    indexOf = \case
+      Rzk.ParamType _ ty -> pure (SortIndex Nothing ty)
+      Rzk.ParamTermType _ (Rzk.Var _ v) ty -> pure (SortIndex (Just v) ty)
+      Rzk.ParamTermType _ pat _ -> Left $
+        "an index binder of a #data sort must be a plain variable, got "
+          <> Rzk.printTree pat
+      p -> Left $
+        "an index of a #data sort must be a plain type, got " <> Rzk.printTree p
+
+dataBodyParts :: Rzk.DataBody -> ([Rzk.Constructor], [Rzk.DataElim])
+dataBodyParts = \case
+  Rzk.NoDataBody _              -> ([], [])
+  Rzk.SomeDataBody _ cons elims -> (cons, elims)
+
+-- | Parameters must be plain typed variables, since the generated entries
+-- apply the type former to them.
+dataParamVars :: [Rzk.Param] -> Either String [Rzk.VarIdent]
+dataParamVars = fmap concat . mapM paramVarsOf
+  where
+    paramVarsOf = \case
+      Rzk.ParamPatternType _ pats _ty -> forM pats $ \case
+        Rzk.PatternVar _ v -> pure v
+        pat -> Left $
+          "a parameter of a #data must be a plain variable, got "
+            <> Rzk.printTree pat
+      p -> Left $
+        "a parameter of a #data must be a typed variable (x : A), got "
+          <> Rzk.printTree p
+
+dataFieldToParamDecl :: Rzk.VarIdent -> Rzk.Param -> Either String [Rzk.ParamDecl]
+dataFieldToParamDecl cname = \case
+  p@Rzk.ParamPatternType{}       -> paramDeclsOf p
+  p@Rzk.ParamPatternShape{}      -> paramDeclsOf p
+  p@Rzk.ParamPatternModalShape{} -> paramDeclsOf p
+  p@Rzk.ParamPatternModalType{}  -> paramDeclsOf p
+  Rzk.ParamPattern _ pat -> Left $
+    "untyped field " <> Rzk.printTree pat <> " in constructor " <> Rzk.printTree cname
+
+-- | Preprocess one constructor, recognising its return indices and directly
+-- recursive fields syntactically.
+dataConSurface
+  :: Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.ParamDecl] -> Int -> Rzk.Constructor
+  -> Either String DataConSurface
+dataConSurface dataName paramVars paramDecls indexArity (Rzk.Constructor _loc cname cparams ctype) = do
+  fieldDecls <- concat <$> mapM (dataFieldToParamDecl cname) cparams
+  let defaultRet = surfaceApps (surfaceVar dataName) (map surfaceVar paramVars)
+      recIndicesOf = dataAppliedIndices dataName paramVars indexArity
+  (ret, retIndices, sort) <- case ctype of
+    Rzk.NoConstructorType _
+      | indexArity == 0 -> pure (defaultRet, [], DataConPoint)
+      | otherwise -> Left $
+          "constructor " <> Rzk.printTree cname
+            <> " must spell out its return type: the family has "
+            <> show indexArity <> " index(es)"
+    Rzk.SomeConstructorType _ ret
+      | Just ixs <- recIndicesOf ret -> pure (ret, ixs, DataConPoint)
+    Rzk.SomeConstructorType _ ret@(Rzk.TypeId _ l carrier r)
+      | Just _ <- recIndicesOf carrier ->
+          if indexArity == 0
+            then pure (ret, [], DataConPath l r)
+            else Left $
+              "path constructor " <> Rzk.printTree cname
+                <> " in an indexed family is not supported"
+      | isIdentity carrier -> higherPathError
+    Rzk.SomeConstructorType _ (Rzk.TypeIdSimple _ _ _) -> Left $
+      "the return type of path constructor " <> Rzk.printTree cname
+        <> " must spell out the carrier of the identification, like l =_{"
+        <> Rzk.printTree defaultRet <> "} r"
+    Rzk.SomeConstructorType _ _ -> Left $
+      "the return type of constructor " <> Rzk.printTree cname
+        <> " must be the declared type applied to its parameters and "
+        <> show indexArity <> " index(es), like "
+        <> Rzk.printTree defaultRet <> " …"
+  let fieldTypes = [ ty | Rzk.ParamTermType _ _ ty <- fieldDecls ]
+      recursive =
+        [ (j, ixs) | (j, ty) <- zip [0 ..] fieldTypes, Just ixs <- [recIndicesOf ty] ]
+      isRec ty = maybe False (const True) (recIndicesOf ty)
+      nonRecTypes = [ ty | ty <- fieldTypes, not (isRec ty) ]
+      nonRecDecls = [ d | d@(Rzk.ParamTermType _ _ ty) <- fieldDecls, not (isRec ty) ]
+  forM_ fieldTypes $ \case
+    fieldTy@(Rzk.TypeId _ _ carrier _)
+      | matchesDataApplied dataName paramVars indexArity carrier -> Left $
+          "constructor " <> Rzk.printTree cname
+            <> " has a field of an identity type over the declared type ("
+            <> Rzk.printTree fieldTy
+            <> "); higher paths are not supported yet"
+    _ -> pure ()
+  pure DataConSurface
+    { dataConName = cname
+    , dataConFields = fieldDecls
+    , dataConFieldPats = concatMap fieldPats cparams
+    , dataConRecursive = recursive
+    , dataConRetIndices = retIndices
+    , dataConType = addParamDecls (paramDecls <> fieldDecls) ret
+    , dataConProbe = addParamDecls nonRecDecls (Rzk.TypeUnit Nothing)
+    , dataConNonRec = nonRecTypes
+    , dataConLocalNames = identTokenOf cname
+        : map identTokenOf (concatMap fieldVars cparams)
+    , dataConSort = sort
+    }
+  where
+    fieldVars = \case
+      Rzk.ParamPatternType _ pats _           -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternShape _ pats _ _        -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalType _ pats _ _    -> concatMap surfacePatternVars pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> concatMap surfacePatternVars pats
+      _                                       -> []
+    fieldPats = \case
+      Rzk.ParamPatternType _ pats _           -> map patternToTerm pats
+      Rzk.ParamPatternShape _ pats _ _        -> map patternToTerm pats
+      Rzk.ParamPatternModalType _ pats _ _    -> map patternToTerm pats
+      Rzk.ParamPatternModalShape _ pats _ _ _ -> map patternToTerm pats
+      _                                       -> []
+    isIdentity = \case
+      Rzk.TypeId{}       -> True
+      Rzk.TypeIdSimple{} -> True
+      _                  -> False
+    higherPathError = Left $
+      "constructor " <> Rzk.printTree cname
+        <> " declares a path between paths; higher path constructors are not supported yet"
+
+-- | The images of path-constructor endpoints under the section being defined.
+-- Endpoints are built only from constructors, fields, and induction hypotheses.
+pathEndpointImages
+  :: Rzk.VarIdent -> [Rzk.VarIdent] -> [DataConSurface]
+  -> [Rzk.VarIdent] -> Maybe [Rzk.VarIdent]
+  -> Either String [Maybe ((Rzk.Term, Rzk.Term), (Rzk.Term, Rzk.Term))]
+pathEndpointImages name paramVars consData ihNames methodVars = forM consData $ \con ->
+  case dataConSort con of
+    DataConPoint    -> pure Nothing
+    DataConPath l r -> do
+      iL <- imageOf con l
+      iR <- imageOf con r
+      pure (Just ((l, r), (iL, iR)))
+  where
+    conMethods = case methodVars of
+      Just ms -> zip (map (identTokenOf . dataConName) consData) (zip ms consData)
+      Nothing -> []
+    dataTok = identTokenOf name
+    conToks = map (identTokenOf . dataConName) consData
+    ihByFieldTok c =
+      [ (identTokenOf v, ih)
+      | (ih, j) <- zip ihNames (recPositionsOf c)
+      , Rzk.Var _ v <-
+          [nthByConstruction "constructor field patterns" (dataConFieldPats c) j] ]
+    endpointErr c t = Left $
+      "in path constructor " <> Rzk.printTree (dataConName c)
+        <> ": an endpoint must be built from the declaration's"
+        <> " constructors and the constructor's fields, but "
+        <> Rzk.printTree t <> " is not"
+    ensureDFree c t =
+      let bad = dataTok : conToks <> map fst (ihByFieldTok c)
+       in unless (null [ () | tk <- surfaceVarTokens t, tk `elem` bad ])
+            (endpointErr c t)
+    imageOf c t = case surfaceAppSpine t of
+      (Rzk.Var _ v, args)
+        | Just (m, target) <- lookup (identTokenOf v) conMethods -> do
+            let nP = length paramVars
+                arity = length (dataConFields target)
+                (pArgs, fArgs) = splitAt nP args
+                varTokOf = \case
+                  Rzk.Var _ u -> Just (identTokenOf u)
+                  _           -> Nothing
+            unless (length args == nP + arity
+                && map varTokOf pArgs == map (Just . identTokenOf) paramVars) $
+              endpointErr c t
+            imgArgs <- forM (zip [0 :: Int ..] fArgs) $ \(j, a) ->
+              if j `elem` recPositionsOf target
+                then do { ia <- imageOf c a; pure [a, ia] }
+                else do { ensureDFree c a; pure [a] }
+            pure (surfaceApps (surfaceVar m) (concat imgArgs))
+        | null args
+        , Just ih <- lookup (identTokenOf v) (ihByFieldTok c) ->
+            pure (surfaceVar ih)
+      _ -> endpointErr c t
+
+-- | Split re-ascription clauses by the generated entry they name.
+splitDataClauses
+  :: Rzk.VarIdent -> [Rzk.VarIdent] -> [Rzk.VarIdent] -> [Rzk.DataElim]
+  -> Either String ([(Rzk.VarIdentToken, Rzk.Term)], [(Rzk.VarIdentToken, Rzk.Term)])
+splitDataClauses name elimNames computeNames = go ([], [])
+  where
+    go acc [] = pure acc
+    go (melims, mcomp) (Rzk.DataElim _loc elimName ty : rest)
+      | any (sameIdent elimName) elimNames =
+          if identTokenOf elimName `elem` map fst melims
+            then duplicate elimName
+            else go (melims <> [(identTokenOf elimName, ty)], mcomp) rest
+      | otherwise = Left $
+          "eliminate with clause for " <> Rzk.printTree elimName
+            <> ", which is not an eliminator of " <> Rzk.printTree name
+            <> " (the eliminators are "
+            <> intercalate ", " (map Rzk.printTree elimNames) <> ")"
+    go (melims, mcomp) (Rzk.DataCompute _loc ruleName ty : rest)
+      | any (sameIdent ruleName) computeNames =
+          if identTokenOf ruleName `elem` map fst mcomp
+            then duplicate ruleName
+            else go (melims, mcomp <> [(identTokenOf ruleName, ty)]) rest
+      | otherwise = Left $
+          "compute with clause for " <> Rzk.printTree ruleName
+            <> ", which is not a computation rule of " <> Rzk.printTree name
+            <> case computeNames of
+                 [] -> " (the declaration has no path constructors, so no computation rules are generated)"
+                 _  -> " (the computation rules are "
+                         <> intercalate ", " (map Rzk.printTree computeNames)
+                         <> ")"
+    duplicate n = Left $ "duplicate re-ascription clause for " <> Rzk.printTree n
+    sameIdent a b = identTokenOf a == identTokenOf b
+
+-- | A fresh surface identifier, using the supplied top-level binding test.
+freshIdentWith
+  :: (Rzk.VarIdent -> Bool) -> [Rzk.VarIdentToken] -> T.Text -> Rzk.VarIdent
+freshIdentWith isBound avoid base =
+  case filter isFree candidates of
+    cand : _ -> cand
+    []       -> panicImpossible "no fresh identifier candidate"
+  where
+    candidates =
+      [ Rzk.VarIdent Nothing (Rzk.VarIdentToken (base <> T.replicate p "'"))
+      | p <- [0 ..] ]
+    isFree cand = identTokenOf cand `notElem` avoid && not (isBound cand)
+
+freshIdentsWith
+  :: (Rzk.VarIdent -> Bool) -> Int -> [Rzk.VarIdentToken] -> T.Text -> [Rzk.VarIdent]
+freshIdentsWith isBound count avoid base = go count avoid []
+  where
+    go 0 _ acc = reverse acc
+    go k avoidNow acc =
+      let ident = freshIdentWith isBound avoidNow base
+       in go (k - 1) (identTokenOf ident : avoidNow) (ident : acc)
 
 -- * Eliminator construction
 
