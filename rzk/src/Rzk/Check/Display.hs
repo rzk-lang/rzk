@@ -139,7 +139,7 @@ fromCore used supply names = go
       TopeInv t -> Rzk.TopeInv loc (go t)
       TopeUninv t -> Rzk.TopeUninv loc (go t)
       RecBottom -> Rzk.RecBottom loc
-      RecOr _ rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
+      Node (RecOrF _ rs) -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
       -- an anonymous binder the codomain does not use is not shown
@@ -245,6 +245,7 @@ fromCore used supply names = go
              (Id, Just motive) -> Rzk.LetModInto loc (fromMod inn) bind (go val) (go motive) body'
              (_, Nothing)      -> Rzk.LetModFramed loc (fromMod app) (fromMod inn) bind (go val) body'
              (_, Just motive)  -> Rzk.LetModFramedInto loc (fromMod app) (fromMod inn) bind (go val) (go motive) body'
+
 
     -- Display conjunction up to idempotence, using conservative syntactic
     -- equality so that elaboration's repeated domain conjunct is shown once.

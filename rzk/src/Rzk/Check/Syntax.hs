@@ -430,6 +430,8 @@ pattern TopeUninv :: Core n -> Core n
 pattern TopeUninv t = Node (TopeUninvF t)
 pattern RecBottom :: Core n
 pattern RecBottom = Node RecBottomF
+-- | An elaborated @recOR@, with its cached type. This does not match the
+-- unelaborated 'RecOrF' with 'Nothing'.
 pattern RecOr :: Core n -> [(Core n, Core n)] -> Core n
 pattern RecOr ty rs = Node (RecOrF (Just ty) rs)
 pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
