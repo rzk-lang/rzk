@@ -142,7 +142,7 @@ module Rzk.Check.Value
   , entailsValue
   , assumeValue
   , topeAndValue
-  , recOrValue
+  , recOrType
     -- * Types of neutrals
   , Neutral
   , asNeutral
@@ -1205,11 +1205,11 @@ assumeValue scope ctx tope = ctx { ctxTopes = assume (topeOf scope ctx tope) (ct
 entailsValue :: Distinct n => Scope n -> Context n -> Value n -> Bool
 entailsValue scope ctx tope = entails (ctxTopes ctx) (topeOf scope ctx tope)
 
--- | A @recOR@ of values, simplified as evaluation simplifies one: the branch
--- whose guard the context entails, otherwise the one branch if all are
--- convertible, otherwise the @recOR@ itself.
-recOrValue :: Distinct n => Scope n -> Context n -> [(Value n, Value n)] -> Value n
-recOrValue scope ctx rs =
+-- | The type of a @recOR@, as a @recOR@ of its branch types. Select a branch
+-- whose guard the context entails, or the common type if all are convertible.
+-- Otherwise the stuck @recOR@ of types is annotated with its type, @U@.
+recOrType :: Distinct n => Scope n -> Context n -> [(Value n, Value n)] -> Value n
+recOrType scope ctx rs =
   case [ b | (guard, b) <- rs, entailsValue scope ctx guard ] of
     b : _ -> b
     [] -> case rs of

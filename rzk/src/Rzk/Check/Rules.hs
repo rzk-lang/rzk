@@ -787,7 +787,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
       pure ((tope', branch'), (topeV, branchV), (topeV, ty))
     sequence_ [ checkCoherence l r | l : rest <- tails [ b | (_, b, _) <- branches ], r <- rest ]
     contextEntailsUnion [ t | (_, (t, _), _) <- branches ]
-    let ty = recOrValue scope ctx [ t | (_, _, t) <- branches ]
+    let ty = recOrType scope ctx [ t | (_, _, t) <- branches ]
     tyC <- quoteM ty
     pure (Ann (RecOr [ b | (b, _, _) <- branches ]) tyC, ty)
 
