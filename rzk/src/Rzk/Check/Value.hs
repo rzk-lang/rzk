@@ -1001,32 +1001,36 @@ singlePattern = PatternVar Nothing
 -- the value it is bound to: a pair pattern destructures a Σ type or a cube
 -- product. Invalid pair patterns are rejected before semantic entry.
 --
--- The context is the one under the pattern, without the pattern's own
--- entries yet: the codomain of a Σ is evaluated at the left component's
--- names, which the environment binds, so the entries are never consulted
--- while they are built.
+-- The context is the full context under the pattern. Callers construct it
+-- with the lazy entry list being built, keeping its entry map total. The
+-- entry list's spine depends only on the pattern, so constructing that map
+-- does not force any entry's type.
 patternEntries
   :: forall n l. (Distinct n, Distinct l)
   => Scope l -> Context l -> TModality -> Maybe LocationInfo -> Value l -> Pattern n l -> [Entry l]
-patternEntries scope ctx md loc = go
+patternEntries scope ctx md loc ty pat = [ entryAt ty pat path | path <- patternPaths pat ]
   where
-    go :: (Distinct x, DExt y l) => Value l -> Pattern x y -> [Entry l]
-    go ty = \case
-      PatternVar x _    -> [entryOf x ty]
-      PatternWildcard _ -> [entryOf Nothing ty]
-      PatternUnit       -> []
+    entryAt :: (Distinct x, DExt y l) => Value l -> Pattern x y -> PatternPath -> Entry l
+    entryAt ty' pat' path = case pat' of
+      PatternVar x _    -> entryOf x ty'
+      PatternWildcard _ -> entryOf Nothing ty'
+      PatternUnit       -> panicImpossible "a path into a unit pattern"
       PatternPair l r -> case Foil.assertDistinct l of
         Foil.Distinct -> case Foil.assertExt r of
-          Foil.Ext -> case NbE.force (stripRestrictions ty) of
-            VTypeSigma env _ a b ->
-              go (inherit firstValue a) l
-                <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
-            VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
+          Foil.Ext -> case NbE.force (stripRestrictions ty') of
+            VTypeSigma env _ a b -> case path of
+              PathLeft p  -> entryAt (inherit firstValue a) l p
+              PathRight p -> entryAt (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r p
+              PathHere    -> panicImpossible "a pair pattern path at its root"
+            VCubeProduct a b -> case path of
+              PathLeft p  -> entryAt (inherit firstValue a) l p
+              PathRight p -> entryAt (inherit secondValue b) r p
+              PathHere    -> panicImpossible "a pair pattern path at its root"
             _ -> panicImpossible "a pair pattern at a non-pair type"
       where
         -- A component of a restricted pair is restricted to the same
         -- component of each boundary pair.
-        inherit project component = case restrictionsOf ty of
+        inherit project component = case restrictionsOf ty' of
           [] -> component
           rs -> NbE.vnode (TypeRestrictedF component [ (tope, project face) | (tope, face) <- rs ])
     -- The names of a subpattern also belong to the whole pattern's scope.
@@ -1034,6 +1038,15 @@ patternEntries scope ctx md loc = go
     patternValueIn :: (Distinct x, DExt y l, Distinct y) => Pattern x y -> Value l
     patternValueIn = Foil.sink . patternValue
     entryOf mname t = localEntry md mname loc t
+
+data PatternPath = PathHere | PathLeft PatternPath | PathRight PatternPath
+
+patternPaths :: Pattern n l -> [PatternPath]
+patternPaths = \case
+  PatternVar _ _    -> [PathHere]
+  PatternWildcard _ -> [PathHere]
+  PatternUnit       -> []
+  PatternPair l r   -> map PathLeft (patternPaths l) <> map PathRight (patternPaths r)
 
 -- | The entries of a let's pattern: each name has its component of the
 -- value.
@@ -1060,8 +1073,7 @@ underPattern
   :: (Distinct n, DExt n l)
   => Scope l -> Context n -> TModality -> Value n -> Maybe (Value n) -> Pattern n l -> Context l
 underPattern scope' ctx md ty mshape pat =
-  let ctx0 = Foil.sink ctx
-      entries = patternEntries scope' ctx0 md (ctxLocation ctx) (Foil.sink ty) pat
+  let entries = patternEntries scope' ctx' md (ctxLocation ctx) (Foil.sink ty) pat
       ctx' = enterPattern pat entries ctx
   in assumeShapeAt scope' pat mshape ctx'
 
@@ -1136,10 +1148,10 @@ sigmaBinder md a = Extend $ \_ pat scope' ctx -> withSubject Nothing (underPatte
 letBinder :: Maybe (Value n) -> Value n -> Extend Context Pattern Sig n
 {-# INLINE letBinder #-}
 letBinder mty val = Extend $ \_ pat scope' ctx ->
-  let ctx0 = Foil.sink ctx
-      ty = maybe (panicImpossible "an elaborated let without its value type") id mty
-      entries = letEntries scope' ctx0 (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat
-  in withSubject Nothing (enterPattern pat entries ctx)
+  let ty = maybe (panicImpossible "an elaborated let without its value type") id mty
+      entries = letEntries scope' ctx' (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat
+      ctx' = enterPattern pat entries ctx
+  in withSubject Nothing ctx'
 
 -- | An unsupported construct has no typed semantic binder. Entering one is
 -- an invariant violation, not a reason to manufacture a hole.

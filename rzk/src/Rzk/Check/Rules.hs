@@ -572,9 +572,9 @@ underLet
 underLet ty val body@(ScopedAST pat _) k = do
   validatePattern ty pat
   enterRawScope (\scope' pat' ctx ->
-    enterPattern pat'
-      (letEntries scope' (Foil.sink ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
-      ctx)
+    let entries = letEntries scope' ctx' (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat'
+        ctx' = enterPattern pat' entries ctx
+    in ctx')
     body k
 
 -- | Enter a local definition's scope and wrap the elaborated body with its
