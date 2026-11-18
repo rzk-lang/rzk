@@ -83,13 +83,14 @@ sinkDecls = Foil.sink1
 resolveNames :: Distinct n => Rzk.Term -> Check n (Raw n)
 resolveNames term = do
   ctx <- askContext
+  scope <- askScope
   forM_ (hintsOf term) $ \(original, suggestion) ->
     recordHint $ \c -> SimplificationHint
       (Rzk.printTree original) (Rzk.printTree suggestion) (surfaceLocation original c)
   let env name = case lookupNamed name ctx of
         Just v  -> Var v
         Nothing -> rawNode noPosition (HoleF (Just (markUnresolved name)))
-  pure (toRaw (ctxScope ctx) env term)
+  pure (toRaw scope env term)
 
 -- | Bind a top-level entry and run the rest of the module under it. The
 -- entry keeps its elaborated type and body, and is recorded in the
@@ -102,9 +103,10 @@ withTopLevel
 withTopLevel name tyCore ty mval kind uses k = do
   checkTopLevelDuplicate name
   ctx <- askContext
-  let scope = ctxScope ctx
+  scope <- askScope
   Foil.withFresh scope $ \binder -> do
     let pat = PatternVar (Just name) binder
+        scope' = Foil.extendScopePattern pat scope
         value = fmap (evalCore scope ctx) mval
         entry = Entry
           { entryType = Foil.sink ty
@@ -126,7 +128,7 @@ withTopLevel name tyCore ty mval kind uses k = do
           , declValue = Foil.sink1 value
           , declLocation = ctxLocation ctx
           }
-    inContext ctx' (k decl)
+    inContext (ContextWithScope scope' ctx') (k decl)
 
 -- | Record a new entry in the innermost open section.
 recordInSection :: Foil.Name n -> Context n -> Context n
@@ -361,7 +363,8 @@ checkCommands path i total commands k = case commands of
       result <- attempt $ do
         (term', _) <- atSurface term $ resolveNames term >>= infer
         ctx <- askContext
-        pure (ppCore (namingOfContext ctx) (nfCore (ctxScope ctx) ctx term'))
+        scope <- askScope
+        pure (ppCore (namingOfContext ctx) (nfCore scope ctx term'))
       case result of
         Left err -> skipping err path i total more k
         Right shown -> announce ("  " <> shown) $ checkCommands path (i + 1) total more k
@@ -371,7 +374,8 @@ checkCommands path i total commands k = case commands of
       result <- attempt $ do
         (term', _) <- atSurface term $ resolveNames term >>= infer
         ctx <- askContext
-        pure (ppCore (namingOfContext ctx) (quoteWhnfCore (ctxScope ctx) ctx term'))
+        scope <- askScope
+        pure (ppCore (namingOfContext ctx) (quoteWhnfCore scope ctx term'))
       case result of
         Left err -> skipping err path i total more k
         Right shown -> announce ("  " <> shown) $ checkCommands path (i + 1) total more k
@@ -456,6 +460,7 @@ withSection name path i total commands k =
   localContext (\ctx -> ctx { ctxSections = Section name [] : ctxSections ctx }) $
     checkCommands path i total commands $ \_decls errs -> do
       outer <- askContext
+      scope <- askScope
       result <- attempt $ performing (ActionCloseSection name) (endSection errs)
       case result of
         -- the section is closed even so, so that the enclosing one does not
@@ -465,7 +470,7 @@ withSection name path i total commands k =
             k [] (errs <> [err])
         -- the rest of the module is not checked under the closing action
         Right (decls, errs', ctx') ->
-          inContext ctx' { ctxDiag = ctxDiag outer, ctxLocation = ctxLocation outer } (k decls errs')
+          inContext (ContextWithScope scope (ctx' { ctxDiag = ctxDiag outer, ctxLocation = ctxLocation outer })) (k decls errs')
 
 -- * Closing a section
 
@@ -485,8 +490,8 @@ endSection
   -> Check n ([Decl n], [ErrorInContext], Context n)
 endSection errs = do
   ctx <- askContext
-  let scope = ctxScope ctx
-      entries = [ (name, lookupEntry name ctx)    -- newest first
+  scope <- askScope
+  let entries = [ (name, lookupEntry name ctx)    -- newest first
                 | name <- case ctxSections ctx of
                     []    -> []
                     s : _ -> sectionEntries s ]

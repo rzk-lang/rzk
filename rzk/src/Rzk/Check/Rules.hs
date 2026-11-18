@@ -57,7 +57,7 @@ import           Rzk.Check.Value
 -- * Values in the monad
 
 evalM :: Distinct n => Core n -> Check n (Value n)
-evalM t = asksContext $ \ctx -> evalCore (ctxScope ctx) ctx t
+evalM t = evalCore <$> askScope <*> askContext <*> pure t
 {-# INLINE evalM #-}
 
 -- | Check a term against a type and evaluate the elaborated term.
@@ -79,7 +79,7 @@ inferOrCheckValue mannot val = case mannot of
 -- | A value read back, with defined names folded. Lazy: nothing is read
 -- back until a consumer looks.
 quoteM :: Distinct n => Value n -> Check n (Core n)
-quoteM v = asksContext $ \ctx -> quoteFolded (ctxScope ctx) ctx v
+quoteM v = quoteFolded <$> askScope <*> askContext <*> pure v
 {-# INLINE quoteM #-}
 
 -- * Binders
@@ -96,12 +96,12 @@ enterRawScope
 enterRawScope extend (ScopedAST pat body) k = do
   warnShadowing pat
   ctx <- askContext
-  let scope = ctxScope ctx
-      enter :: forall l. DExt n l => Pattern n l -> Raw l -> Check n r
+  scope <- askScope
+  let enter :: forall l. DExt n l => Pattern n l -> Raw l -> Check n r
       enter pat' body' = case (Foil.assertDistinct pat', Foil.assertExt pat') of
         (Foil.Distinct, Foil.Ext) ->
           let scope' = Foil.extendScopePattern pat' scope
-          in inContext (extend scope' pat' ctx) (k pat' body')
+          in inContext (ContextWithScope scope' (extend scope' pat' ctx)) (k pat' body')
       fresh = case Foil.assertDistinct pat of
         Foil.Distinct -> all (\(_, x) -> not (Foil.member x scope)) (patternNames pat)
   if fresh
@@ -129,17 +129,19 @@ validatePattern ty = \case
       VTypeSigma env _ a b -> do
         validatePattern a l
         ctx <- askContext
-        let scopeL = Foil.extendScopePattern l (ctxScope ctx)
+        scope <- askScope
+        let scopeL = Foil.extendScopePattern l scope
             ctxL = underPattern scopeL ctx Id a Nothing l
-        inContext ctxL $ do
+        inContext (ContextWithScope scopeL ctxL) $ do
           let bV = evalScope scopeL ctxL (Foil.sink env) b (patternValue l)
           validatePattern bV r
       VCubeProduct a b -> do
         validatePattern a l
         ctx <- askContext
-        let scopeL = Foil.extendScopePattern l (ctxScope ctx)
+        scope <- askScope
+        let scopeL = Foil.extendScopePattern l scope
             ctxL = underPattern scopeL ctx Id a Nothing l
-        inContext ctxL $ validatePattern (Foil.sink b) r
+        inContext (ContextWithScope scopeL ctxL) $ validatePattern (Foil.sink b) r
       _ -> issueTypeError (TypeErrorUnexpectedPairPattern pat domain)
 
 -- | Enter a raw scope bound at a domain, with a modality and a shape.
@@ -183,7 +185,7 @@ carryFamilyDomain
   => Pattern n l -> Value n -> Core l -> Check l (Core l)
 carryFamilyDomain pat shape body = do
   ctx <- askContext
-  let scope = ctxScope ctx
+  scope <- askScope
   bodyV <- evalM body
   let domainV = appValue scope ctx (Foil.sink shape) (patternValue pat)
       bodyT = topeOf scope ctx bodyV
@@ -191,7 +193,7 @@ carryFamilyDomain pat shape body = do
   if topesEntail (ctxTopes ctx) [bodyT] domainT then pure body else do
     warn <- asksContext (optWarnTopeFamilyDomain . ctxOptions)
     when warn $ recordWarning $ \c ->
-      TopeFamilyDomainWarning (ppValueIn c bodyV) (ppValueIn c domainV) (ctxLocation c)
+      TopeFamilyDomainWarning (ppValueIn scope c bodyV) (ppValueIn scope c domainV) (ctxLocation c)
     domainC <- quoteM domainV
     pure (TopeAnd domainC body)
 
@@ -287,7 +289,8 @@ domainKindName = \case
 ensureTypeAtU :: Distinct n => String -> Value n -> Check n ()
 ensureTypeAtU position ty = do
   ctx <- askContext
-  case classifyType (ctxScope ctx) ctx ty of
+  scope <- askScope
+  case classifyType scope ctx ty of
     DomainType -> pure ()
     kind -> issueTypeError $ TypeErrorOther $
       position <> " must be a type, got " <> domainKindName kind
@@ -303,7 +306,8 @@ contextTopesM = asksContext (accessibleTopes . ctxTopes)
 contextEntails :: Distinct n => Value n -> Check n ()
 contextEntails topeV = do
   ctx <- askContext
-  let tope = topeOf (ctxScope ctx) ctx topeV
+  scope <- askScope
+  let tope = topeOf scope ctx topeV
   topes <- contextTopesM
   performing (ActionEntails topes tope) $
     unless (entails (ctxTopes ctx) tope || topeHasHole tope) $
@@ -314,7 +318,8 @@ contextEntails topeV = do
 contextEntailsUnion :: Distinct n => [Value n] -> Check n ()
 contextEntailsUnion topeVs = do
   ctx <- askContext
-  let topes = map (topeOf (ctxScope ctx) ctx) topeVs
+  scope <- askScope
+  let topes = map (topeOf scope ctx) topeVs
   ctxTopes' <- contextTopesM
   performing (ActionEntailsUnion ctxTopes' topes) $
     unless (entailsUnion (ctxTopes ctx) topes || any topeHasHole topes) $
@@ -355,8 +360,9 @@ pointHasHole = \case
 checkTopeAgainstContext :: Distinct n => String -> Value n -> Check n ()
 checkTopeAgainstContext what topeV = do
   ctx <- askContext
+  scope <- askScope
   let topes = ctxTopes ctx
-      tope = topeOf (ctxScope ctx) ctx topeV
+      tope = topeOf scope ctx topeV
   unless (entailsBottom topes) $
     if disjoint topes tope && not (topeHasHole tope)
       then issueTypeError (TypeErrorTopeContextDisjoint tope (filter (/= TTop) (accessibleTopes topes)))
@@ -370,7 +376,7 @@ checkTopeAgainstContext what topeV = do
 checkCoherence :: Distinct n => (Value n, Value n) -> (Value n, Value n) -> Check n ()
 checkCoherence (ltope, lterm) (rtope, rterm) = do
   ctx <- askContext
-  let scope = ctxScope ctx
+  scope <- askScope
   underTope (topeOf scope ctx (topeAndValue ltope rtope)) $
     convertTerms lterm rterm
 
@@ -384,10 +390,9 @@ checkHole mname goal = do
   case mode of
     HolesAreErrors -> issueTypeError (TypeErrorUnsolvedHole mname goal)
     _ -> do
-      recordHole $ \ctx ->
+      recordHole $ \scope ctx ->
         let naming = namingOfContext ctx
-            scope = ctxScope ctx
-            entry (x, e) = (ppName naming x, ppValueIn ctx (entryType e))
+            entry (x, e) = (ppName naming x, ppValueIn scope ctx (entryType e))
             locals = [ (x, e) | (x, e) <- entriesInScope ctx, entryKind e == EntryLocal ]
             isCubeEntry e = cubeOfType (entryType e) /= KOther
         in HoleInfo
@@ -409,7 +414,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
   RHole mname -> checkHole mname ty
   _ -> do
     ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     case force ty of
       -- even under an absurd context the term must be well-formed
       VRecBottom -> do
@@ -483,8 +488,8 @@ check term ty = performing (ActionCheck term ty) $ case term of
                   _ -> mshape'
             body' <- underRawScopeBody md' dom' mshapeAssumed body $ \pat bodyTerm -> do
               ctxIn <- askContext
-              let scopeIn = ctxScope ctxIn
-                  retIn = codomainAt scopeIn ctxIn (Foil.sink env) ret (patternValue pat)
+              scopeIn <- askScope
+              let retIn = codomainAt scopeIn ctxIn (Foil.sink env) ret (patternValue pat)
               bodyIn <- check bodyTerm retIn
               -- A tope family checked against a shape domain carries the
               -- domain: its body becomes the conjunction, unless the body
@@ -568,7 +573,7 @@ underLet ty val body@(ScopedAST pat _) k = do
   validatePattern ty pat
   enterRawScope (\scope' pat' ctx ->
     enterPattern pat'
-      (letEntries scope' (sinkContextUnchecked scope' ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
+      (letEntries scope' (Foil.sink ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
       ctx)
     body k
 
@@ -587,7 +592,7 @@ underLetBody ty val body k = underLet ty val body $ \pat bodyTerm ->
 checkRecOrAgainst :: Distinct n => Value n -> [(Raw n, Raw n)] -> Check n (Core n)
 checkRecOrAgainst ty rs = do
   ctx <- askContext
-  let scope = ctxScope ctx
+  scope <- askScope
   branches <- forM rs $ \(tope, branch) -> do
     (tope', topeV) <- checkEval tope topeUniverse
     checkTopeAgainstContext "recOR branch guard" topeV
@@ -614,13 +619,14 @@ inferAs expectedKind term = do
 sortOf :: Distinct n => Value n -> Check n (Value n)
 sortOf ty = do
   ctx <- askContext
+  scope <- askScope
   pure $ case force ty of
     VUniverse -> universe
     VUniverseCube -> universe
     VUniverseTope -> universe
     _ | cubeOfType ty /= KOther -> cubeUniverse
     _ | Just neutral <- asNeutral ty ->
-          stripRestrictions (neutralType (ctxScope ctx) ctx neutral)
+          stripRestrictions (neutralType scope ctx neutral)
       -- The remaining canonical type formers are in U.
       | otherwise -> universe
 
@@ -650,8 +656,9 @@ inferDirectedPoint term = performing (ActionInfer term) $ do
     VCubeI -> pure (point, cube)
     _ -> do
       ctx <- askContext
+      scope <- askScope
       issueTypeError $ TypeErrorOther $
-        "the (t ≤ s) tope expects a point in a directed cube (2 or 𝕀); got " <> ppValueIn ctx cube
+        "the (t ≤ s) tope expects a point in a directed cube (2 or 𝕀); got " <> ppValueIn scope ctx cube
 
 infer :: forall n. Distinct n => Raw n -> Check n (Core n, Value n)
 infer tt = performing (ActionInfer tt) $ case tt of
@@ -693,9 +700,9 @@ infer tt = performing (ActionInfer tt) $ case tt of
       VUniverseCube -> pure (Pair l' r', vnode (CubeProductF lt rt))
       _ -> do
         -- a non-dependent pair
-        ctx <- askContext
+        scope <- askScope
         rtC <- quoteM rt
-        let sigma = Foil.withFresh (ctxScope ctx) $ \b ->
+        let sigma = Foil.withFresh scope $ \b ->
               NbE.vsuspended Foil.identitySubst
                 (TypeSigmaF Id lt (ScopedAST (singlePattern b) (Foil.sink rtC)))
         pure (Pair l' r', sigma)
@@ -711,7 +718,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RSecond t -> do
     (t', ty) <- infer t
     ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     case force (stripRestrictions ty) of
       VRecBottom -> pure (Second t', vrecBottom)
       VCubeProduct _ b -> pure (Second t', b)
@@ -747,9 +754,10 @@ infer tt = performing (ActionInfer tt) $ case tt of
         pure (TopeLEQ l'' r', topeUniverse)
       _ -> do
         ctx <- askContext
+        scope <- askScope
         issueTypeError $ TypeErrorOther $
           "the (t ≤ s) tope expects points in interval cubes (2 or 𝕀); got "
-            <> ppValueIn ctx lTy <> " and " <> ppValueIn ctx rTy
+            <> ppValueIn scope ctx lTy <> " and " <> ppValueIn scope ctx rTy
 
   RTopeAnd l r -> do
     l' <- check l topeUniverse
@@ -770,7 +778,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
 
   RRecOr rs -> do
     ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     branches <- forM rs $ \(tope, branch) -> do
       (tope', topeV) <- checkEval tope topeUniverse
       checkTopeAgainstContext "recOR branch guard" topeV
@@ -787,8 +795,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     (a', aTy) <- infer a
     aV <- evalM a'
-    ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     case force aTy of
       -- a type, including TOPE: a bare tope parameter
       VUniverse -> do
@@ -841,7 +848,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RApp f x -> do
     (f', fTy) <- inferAs universe f
     ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     case piOf fTy of
       _ | Just (Family md cube _) <- familyOf fTy -> do
         when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal function")
@@ -863,8 +870,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")
     (ty', tyTy) <- infer ty
     tyV <- evalM ty'
-    ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     (dom, mshape) <- case force tyTy of
       VUniverse -> pure (tyV, Nothing)
       VUniverseCube -> pure (tyV, Just (topShapeValue scope tyV))
@@ -891,7 +897,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
       retC <- quoteM retIn
       pure (ScopedAST pat bodyIn, ScopedAST pat retC)
     ctx <- askContext
-    let ret = evalScope (ctxScope ctx) ctx Foil.identitySubst retScoped valV
+    scope <- askScope
+    let ret = evalScope scope ctx Foil.identitySubst retScoped valV
     pure (Let (Just valTyC) val' body', ret)
 
   RLetMod{} -> issueTypeError (TypeErrorUnsupported "let mod")
@@ -911,8 +918,8 @@ infer tt = performing (ActionInfer tt) $ case tt of
     (tA', tAV) <- checkEval tA universe
     (a', aV) <- checkEval a tAV
     ctx <- askContext
-    let scope = ctxScope ctx
-        -- (z : A) → (a =_A z) → U
+    scope <- askScope
+    let -- (z : A) → (a =_A z) → U
         motiveTy = Foil.withFresh scope $ \zB ->
           let z = Foil.nameOf zB
               scopeZ = Foil.extendScope zB scope
@@ -942,7 +949,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
   RTypeRestricted ty rs -> do
     (ty', tyV) <- checkEval ty universe
     ctx <- askContext
-    let scope = ctxScope ctx
+    scope <- askScope
     rs' <- forM rs $ \(tope, term) -> do
       (tope', topeV) <- checkEval tope topeUniverse
       (term', termV) <- underTope (topeOf scope ctx topeV) $ checkEval term tyV

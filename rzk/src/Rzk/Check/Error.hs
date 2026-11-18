@@ -37,7 +37,7 @@ module Rzk.Check.Error
   , ppHoleInfo
   ) where
 
-import           Control.Monad.Foil       (Distinct)
+import           Control.Monad.Foil       (Distinct, Scope)
 import qualified Control.Monad.Foil       as Foil
 import           Data.List                (intercalate)
 
@@ -134,13 +134,13 @@ typeErrorTag = \case
 -- | An error with the context it was raised in. The scope is existential:
 -- the context says what the names are called.
 data ErrorInContext where
-  ErrorInContext :: Distinct n => Context n -> TypeError n -> ErrorInContext
+  ErrorInContext :: Distinct n => ContextWithScope n -> TypeError n -> ErrorInContext
 
 errorTag :: ErrorInContext -> String
 errorTag (ErrorInContext _ err) = typeErrorTag err
 
 errorLocation :: ErrorInContext -> Maybe LocationInfo
-errorLocation (ErrorInContext ctx _) = ctxLocation ctx
+errorLocation (ErrorInContext (ContextWithScope _ ctx) _) = ctxLocation ctx
 
 ppPattern :: Pattern n l -> String
 ppPattern = \case
@@ -149,8 +149,8 @@ ppPattern = \case
   PatternUnit        -> "unit"
   PatternPair l r    -> "(" <> ppPattern l <> ", " <> ppPattern r <> ")"
 
-ppTypeError :: Distinct n => Context n -> TypeError n -> String
-ppTypeError ctx = \case
+ppTypeError :: Distinct n => Scope n -> Context n -> TypeError n -> String
+ppTypeError scope ctx = \case
   TypeErrorOther msg -> msg
   TypeErrorUnsupported what -> "not supported by the new checker yet: " <> what
   TypeErrorUnify term expected actual -> block
@@ -267,22 +267,22 @@ ppTypeError ctx = \case
     , intercalate "\n" [ "  " <> ppVarIdentWithLocation prev | prev <- previous ] ]
   where
     naming = namingOfContext ctx
-    ppV = ppValueIn ctx
+    ppV = ppValueIn scope ctx
     ppC = ppCore naming
     ppR = ppCore naming . stripPositions
     block = intercalate "\n"
 
 -- | An error, with the context it was raised in.
 ppErrorInContext :: ErrorInContext -> String
-ppErrorInContext (ErrorInContext ctx err) = intercalate "\n"
-  [ ppTypeError ctx err
+ppErrorInContext (ErrorInContext (ContextWithScope scope ctx) err) = intercalate "\n"
+  [ ppTypeError scope ctx err
   , ""
-  , ppContext ctx ]
+  , ppContext scope ctx ]
 
 -- | The context an error was raised in: where, the tope context, the stack
 -- of judgements, and the hypotheses.
-ppContext :: Distinct n => Context n -> String
-ppContext ctx = intercalate "\n" $ filter (not . null)
+ppContext :: Distinct n => Scope n -> Context n -> String
+ppContext scope ctx = intercalate "\n" $ filter (not . null)
   [ case ctxLocation ctx of
       Just (LocationInfo (Just path) (Just lineNo) (Just col)) ->
         path <> " (line " <> show lineNo <> ", column " <> show col <> "):"
@@ -296,30 +296,30 @@ ppContext ctx = intercalate "\n" $ filter (not . null)
         [ "  " <> (if isAccessible mt then "" else "× ") <> ppTope naming (tTope mt)
         | mt <- topes ]
   , intercalate "\n"
-      [ "when " <> ppAction ctx action
+      [ "when " <> ppAction scope ctx action
       | action <- reverse (diagActions (ctxDiag ctx)) ]
   , intercalate "\n" $ "Definitions in context:" :
-      [ "  " <> ppName naming name <> " : " <> ppValueIn ctx (entryType entry)
+      [ "  " <> ppName naming name <> " : " <> ppValueIn scope ctx (entryType entry)
       | name <- ctxBound ctx, let entry = lookupEntry name ctx ]
   ]
   where
     naming = namingOfContext ctx
 
-ppAction :: Distinct n => Context n -> Action n -> String
-ppAction ctx = \case
+ppAction :: Distinct n => Scope n -> Context n -> Action n -> String
+ppAction scope ctx = \case
   ActionCheck term ty -> block
     [ "typechecking"
     , "  " <> ppCore naming (stripPositions term)
     , "against type"
-    , "  " <> ppValueIn ctx ty ]
+    , "  " <> ppValueIn scope ctx ty ]
   ActionInfer term -> block
     [ "inferring type for term"
     , "  " <> ppCore naming (stripPositions term) ]
   ActionConvert expected actual -> block
     [ "comparing expected"
-    , "  " <> ppValueIn ctx expected
+    , "  " <> ppValueIn scope ctx expected
     , "with actual"
-    , "  " <> ppValueIn ctx actual ]
+    , "  " <> ppValueIn scope ctx actual ]
   ActionEntails topes tope -> block
     [ "checking if local context"
     , intercalate "\n" (map (("  " <>) . ppTope naming) topes)

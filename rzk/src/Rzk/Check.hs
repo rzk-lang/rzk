@@ -12,6 +12,7 @@ module Rzk.Check
   ) where
 
 import           Control.Monad.Foil       (Distinct)
+import qualified Control.Monad.Foil       as Foil
 
 import qualified Language.Rzk.Syntax      as Rzk
 import           Rzk.Check.Context
@@ -25,7 +26,7 @@ import           Rzk.Check.Monad
 data Checked where
   Checked
     :: Distinct n
-    => Context n
+    => ContextWithScope n
     -> [(FilePath, [Decl n])]
     -> [ErrorInContext]
     -> [Warning]
@@ -37,11 +38,11 @@ data Checked where
 checkModules :: Options -> [(FilePath, Rzk.Module)] -> Checked
 checkModules options modules =
   case runCheck ctx0 (Decl.checkModules modules $ \decls errs -> do
-                        ctx <- askContext
+                        ctx <- ContextWithScope <$> askScope <*> askContext
                         pure (Checked ctx decls errs [] [] [])) of
     (Right (Checked ctx decls errs _ _ _), CheckLog holes warnings hints) ->
       Checked ctx decls errs (reverse warnings) (reverse hints) (reverse holes)
     (Left err, CheckLog holes warnings hints) ->
       Checked ctx0 [] [err] (reverse warnings) (reverse hints) (reverse holes)
   where
-    ctx0 = emptyContext { ctxOptions = options }
+    ctx0 = ContextWithScope Foil.emptyScope (emptyContext { ctxOptions = options })

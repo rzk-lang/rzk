@@ -101,8 +101,8 @@ ppCore naming = Rzk.printTree . renderCore naming
 ppValue :: Distinct n => Scope n -> Context n -> Value n -> String
 ppValue scope ctx = ppCore (namingOfContext ctx) . quoteFolded scope ctx
 
-ppValueIn :: Distinct n => Context n -> Value n -> String
-ppValueIn ctx = ppValue (ctxScope ctx) ctx
+ppValueIn :: Distinct n => Scope n -> Context n -> Value n -> String
+ppValueIn = ppValue
 
 -- | The printer proper: the names in use (which a binder must avoid), the
 -- supply for anonymous binders, and the display name of every free name.

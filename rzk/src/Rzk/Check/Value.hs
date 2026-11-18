@@ -1060,7 +1060,7 @@ underPattern
   :: (Distinct n, DExt n l)
   => Scope l -> Context n -> TModality -> Value n -> Maybe (Value n) -> Pattern n l -> Context l
 underPattern scope' ctx md ty mshape pat =
-  let ctx0 = sinkContextUnchecked scope' ctx
+  let ctx0 = Foil.sink ctx
       entries = patternEntries scope' ctx0 md (ctxLocation ctx) (Foil.sink ty) pat
       ctx' = enterPattern pat entries ctx
   in assumeShapeAt scope' pat mshape ctx'
@@ -1136,7 +1136,7 @@ sigmaBinder md a = Extend $ \_ pat scope' ctx -> withSubject Nothing (underPatte
 letBinder :: Maybe (Value n) -> Value n -> Extend Context Pattern Sig n
 {-# INLINE letBinder #-}
 letBinder mty val = Extend $ \_ pat scope' ctx ->
-  let ctx0 = sinkContextUnchecked scope' ctx
+  let ctx0 = Foil.sink ctx
       ty = maybe (panicImpossible "an elaborated let without its value type") id mty
       entries = letEntries scope' ctx0 (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat
   in withSubject Nothing (enterPattern pat entries ctx)

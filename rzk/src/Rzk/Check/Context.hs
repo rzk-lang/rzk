@@ -37,12 +37,12 @@ module Rzk.Check.Context
   , emptyDiag
     -- * The context
   , Context (..)
+  , ContextWithScope (..)
   , emptyContext
   , lookupEntry
   , lookupNamed
   , entriesInScope
   , enterPattern
-  , sinkContextUnchecked
   , insertEntry
   , withVariance
   , withSubject
@@ -276,10 +276,8 @@ emptyDiag = Diag [] 0
 -- * The context
 
 data Context n = Context
-  { ctxScope         :: Scope n
-    -- ^ the names in scope
-  , ctxEntries       :: NameMap n (Entry n)
-    -- ^ total on 'ctxScope'
+  { ctxEntries       :: NameMap n (Entry n)
+    -- ^ total on the scope at which the context is used
   , ctxNamed         :: Map VarIdent (Foil.Name n)
     -- ^ the surface name of each entry that has one
   , ctxBound         :: [Foil.Name n]
@@ -304,6 +302,27 @@ data Context n = Context
     -- ^ the stack of current judgements and its depth
   }
 
+-- | A context together with the scope at which it is used. Semantic
+-- operations take these separately; this pair is for the checker and its
+-- diagnostics.
+data ContextWithScope n = ContextWithScope (Scope n) (Context n)
+
+instance Foil.Sinkable Context where
+  sinkabilityProof rename ctx = Context
+    { ctxEntries = sinkNameMap rename (ctxEntries ctx)
+    , ctxNamed = fmap rename (ctxNamed ctx)
+    , ctxBound = map rename (ctxBound ctx)
+    , ctxTopes = sinkabilityProof rename (ctxTopes ctx)
+    , ctxVariance = ctxVariance ctx
+    , ctxSubject = sinkabilityProof rename <$> ctxSubject ctx
+    , ctxUnfolding = ctxUnfolding ctx
+    , ctxApproximation = ctxApproximation ctx
+    , ctxOptions = ctxOptions ctx
+    , ctxLocation = ctxLocation ctx
+    , ctxSections = map (sinkabilityProof rename) (ctxSections ctx)
+    , ctxDiag = sinkabilityProof rename (ctxDiag ctx)
+    }
+
 -- | The empty context, with 'defaultOptions'. Conversion starts covariantly,
 -- with definitions unfolded and the rigid approximation strategy.
 --
@@ -315,8 +334,7 @@ data Context n = Context
 -- ApproxRigid
 emptyContext :: Context Foil.VoidS
 emptyContext = Context
-  { ctxScope = Foil.emptyScope
-  , ctxEntries = Foil.emptyNameMap
+  { ctxEntries = Foil.emptyNameMap
   , ctxNamed = Map.empty
   , ctxBound = []
   , ctxTopes = emptyTopeContext
@@ -341,41 +359,13 @@ lookupNamed name ctx = Map.lookup name (ctxNamed ctx)
 entriesInScope :: Context n -> [(Foil.Name n, Entry n)]
 entriesInScope ctx = [ (name, lookupEntry name ctx) | name <- reverse (ctxBound ctx) ]
 
--- | Sink all scope-indexed parts of a context to an already-extended scope.
--- The entry map is not total on the new names until 'enterPattern' adds them;
--- callers can use the other fields to construct those entries.
-sinkContextUnchecked :: forall n l. DExt n l => Scope l -> Context n -> Context l
-sinkContextUnchecked scope' ctx =
-  let topes' = (Foil.sink (ctxTopes ctx) :: TopeContext l)
-      subject' = (fmap Foil.sink (ctxSubject ctx) :: Maybe (Core l))
-      sections' = (Foil.sink1 (ctxSections ctx) :: [Section l])
-      diag' = (Foil.sink (ctxDiag ctx) :: Diag l)
-  in Context
-    { ctxScope = scope'
-    , ctxEntries = sinkNameMap Foil.sink (ctxEntries ctx)
-    , ctxNamed = sinkNamed (ctxNamed ctx)
-    , ctxBound = sinkNames (ctxBound ctx)
-    , ctxTopes = topes'
-    , ctxSubject = subject'
-    , ctxVariance = ctxVariance ctx
-    , ctxUnfolding = ctxUnfolding ctx
-    , ctxApproximation = ctxApproximation ctx
-    , ctxOptions = ctxOptions ctx
-    , ctxLocation = ctxLocation ctx
-    , ctxSections = sections'
-    , ctxDiag = diag'
-    }
-
--- | Enter the scope of a pattern: extend the scope with its names and
--- record an entry for each, in binding order.
+-- | Enter the scope of a pattern: record an entry for each of its names, in
+-- binding order. The caller supplies the extended scope separately.
 enterPattern
   :: (Distinct n, DExt n l)
   => Pattern n l -> [Entry l] -> Context n -> Context l
-enterPattern pat entries ctx =
-  let scope' = Foil.extendScopePattern pat (ctxScope ctx)
-  in (sinkContextUnchecked scope' ctx)
-  { ctxScope = scope'
-  , ctxEntries = Foil.addNameBinders pat entries (sinkEntryValues (ctxEntries ctx))
+enterPattern pat entries ctx = (Foil.sink ctx)
+  { ctxEntries = Foil.addNameBinders pat entries (sinkEntryValues (ctxEntries ctx))
   , ctxBound = reverse (map snd names) <> sinkNames (ctxBound ctx)
   , ctxNamed = foldr named (sinkNamed (ctxNamed ctx)) names
   }
