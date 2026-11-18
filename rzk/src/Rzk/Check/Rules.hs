@@ -224,11 +224,6 @@ familyShape scope cube family mdom = case mdom of
       (ScopedAST (singlePattern b)
         (TopeAnd (App (Foil.sink dom) (Var (Foil.nameOf b))) (App (Foil.sink family) (Var (Foil.nameOf b)))))
 
--- | A binder over a cube has a shape: ⊤ when none is written.
-withTopShape :: Distinct n => Foil.Scope n -> Context n -> Value n -> Maybe (Value n) -> Maybe (Value n)
-withTopShape scope ctx dom = \case
-  Nothing | isCube scope ctx dom -> Just (topShapeValue scope dom)
-  mshape -> mshape
 
 -- * The layer discipline
 
@@ -479,7 +474,7 @@ check term ty = performing (ActionCheck term ty) $ case term of
                       pure (Param md cube (Just shapeV))
                     Nothing -> do
                       convertTypes dom' paramV
-                      pure (Param md paramV (withTopShape scope ctx paramV Nothing))
+                      pure (Param md paramV (shapeOrTop scope ctx paramV Nothing))
                 Just shape -> do
                   (cubeV, shapeV) <- checkShapedParam dom' mshape' param shape
                   pure (Param md cubeV (Just shapeV))
