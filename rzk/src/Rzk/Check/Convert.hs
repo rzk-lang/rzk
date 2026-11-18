@@ -162,7 +162,7 @@ toRaw scope env = go
       Rzk.CubeSup _loc l r -> node (CubeSupF (go l) (go r))
       Rzk.CubeInf _loc l r -> node (CubeInfF (go l) (go r))
       Rzk.RecBottom _loc -> node RecBottomF
-      Rzk.RecOr _loc rs -> node (RecOrF Nothing (map restriction rs))
+      Rzk.RecOr _loc rs -> node (RecOrF (map restriction rs))
       Rzk.TypeId _loc x tA y -> node (TypeIdF (go x) (Just (go tA)) (go y))
       Rzk.TypeIdSimple _loc x y -> node (TypeIdF (go x) Nothing (go y))
       Rzk.TypeUnit _loc -> node TypeUnitF
