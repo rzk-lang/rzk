@@ -7,6 +7,7 @@ module Rzk.TypeCheckSpec (spec) where
 
 import           Control.Monad            (forM, unless, when)
 import qualified Control.Monad.Foil       as Foil
+import           Control.Monad.Free.Foil  (ScopedAST (..))
 import           Data.Aeson               (FromJSON, withObject, (.:), (.:?))
 import           Data.Bifunctor           (first)
 import           Data.List                (isInfixOf, isPrefixOf)
@@ -21,6 +22,7 @@ import           System.FilePath.Glob     (compile, globDir1)
 
 import           Data.List                (sort)
 
+import           Language.Rzk.Foil.Names    (TModality (..))
 import qualified Language.Rzk.Syntax        as Rzk
 import qualified Rzk.Check                as Check
 import qualified Rzk.Check.Syntax         as CheckSyntax
@@ -449,6 +451,29 @@ spec = describe "Typecheck fixtures" $ do
     CheckValue.conv Foil.emptyScope
       (Check.withSubject (Just unit) (Check.withVariance Check.Contravariant Check.emptyContext))
       unitV restrictedV `shouldBe` True
+  it "treats a missing cube shape as TOP" $ do
+    let cubeV = CheckValue.evalCore Foil.emptyScope Check.emptyContext CheckSyntax.Cube2
+        top = CheckValue.topShapeValue Foil.emptyScope cubeV
+        topC = CheckValue.quoteIn Foil.emptyScope Check.emptyContext top
+        family = CheckValue.evalCore Foil.emptyScope Check.emptyContext
+          (CheckSyntax.TypeShape Id CheckSyntax.Cube2 Nothing)
+        familyTop = CheckValue.evalCore Foil.emptyScope Check.emptyContext
+          (CheckSyntax.TypeShape Id CheckSyntax.Cube2 (Just topC))
+        piWith mshape = CheckValue.evalCore Foil.emptyScope Check.emptyContext $
+          Foil.withFresh Foil.emptyScope $ \binder ->
+            CheckSyntax.TypeFun Id CheckSyntax.Cube2 mshape
+              (ScopedAST (CheckValue.singlePattern binder) CheckSyntax.Unit)
+    CheckValue.conv Foil.emptyScope Check.emptyContext family familyTop `shouldBe` True
+    CheckValue.conv Foil.emptyScope Check.emptyContext (piWith Nothing) (piWith (Just topC)) `shouldBe` True
+  it "does not invent a shape for an ordinary domain" $ do
+    let cubeV = CheckValue.evalCore Foil.emptyScope Check.emptyContext CheckSyntax.Cube2
+        topC = CheckValue.quoteIn Foil.emptyScope Check.emptyContext
+          (CheckValue.topShapeValue Foil.emptyScope cubeV)
+        piWith mshape = CheckValue.evalCore Foil.emptyScope Check.emptyContext $
+          Foil.withFresh Foil.emptyScope $ \binder ->
+            CheckSyntax.TypeFun Id CheckSyntax.Universe mshape
+              (ScopedAST (CheckValue.singlePattern binder) CheckSyntax.Unit)
+    CheckValue.conv Foil.emptyScope Check.emptyContext (piWith Nothing) (piWith (Just topC)) `shouldBe` False
 
 -- * The new checker
 

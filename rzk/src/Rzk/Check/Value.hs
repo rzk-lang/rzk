@@ -134,6 +134,7 @@ module Rzk.Check.Value
   , underFreshVar
   , isCube
   , topShapeValue
+  , shapeOrTop
     -- * The tope layer
   , topeOf
   , pointOf
@@ -438,6 +439,10 @@ instance Eval Context Pattern Sig where
           in case (mshapeL, mshapeR) of
                (Nothing, Nothing) -> Just domain
                (Just sL, Just sR) -> Just (domain <> term sL sR ctx)
+               (Nothing, Just sR) | Just top <- shapeOrTop scope ctx cubeL Nothing ->
+                 Just (domain <> term top sR ctx)
+               (Just sL, Nothing) | Just top <- shapeOrTop scope ctx cubeR Nothing ->
+                 Just (domain <> term sL top ctx)
                _ -> Nothing
 
     -- Π: the domain in the opposite variance, the shapes as shapes, the
@@ -449,6 +454,10 @@ instance Eval Context Pattern Sig where
               shapes = case (mshapeL, mshapeR) of
                 (Nothing, Nothing) -> Just mempty
                 (Just sL, Just sR) -> Just (term sL sR ctx')
+                (Nothing, Just sR) | Just top <- shapeOrTop scope ctx domL Nothing ->
+                  Just (term top sR ctx')
+                (Just sL, Nothing) | Just top <- shapeOrTop scope ctx domR Nothing ->
+                  Just (term sL top ctx')
                 _ -> Nothing
           in fmap (\s -> domain <> s <> scoped retL retR ctx (pisBinder md domR mshapeL mshapeR)) shapes
     (TypeSigmaF md aL bL, TypeSigmaF md' aR bR)
@@ -1088,6 +1097,13 @@ topShapeValue :: Distinct n => Scope n -> Value n -> Value n
 topShapeValue scope cube = Foil.withFresh scope $ \b ->
   NbE.vsuspended Foil.identitySubst
     (LambdaF (Just (Param Id cube Nothing)) (ScopedAST (singlePattern b) TopeTop))
+
+-- | Fill in ⊤ for a missing shape when the domain is a cube. Ordinary term
+-- domains keep their missing shape.
+shapeOrTop :: Distinct n => Scope n -> Context n -> Value n -> Maybe (Value n) -> Maybe (Value n)
+shapeOrTop scope ctx dom = \case
+  Nothing | isCube scope ctx dom -> Just (topShapeValue scope dom)
+  shape -> shape
 
 -- | Apply a comparison subject to a binder's pattern, producing the subject
 -- of the codomain comparison.
