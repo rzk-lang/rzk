@@ -7,6 +7,7 @@
 module Rzk.Check.Foil.Extras
   ( replaceName
   , nameMapFromList
+  , sinkNameMap
   , singletonSubstitution
   ) where
 
@@ -24,6 +25,11 @@ replaceName name value (NameMap m) = NameMap (IntMap.insert (Foil.nameId name) v
 -- duplicate entries win; the caller supplies every name in the scope.
 nameMapFromList :: [(Name n, a)] -> NameMap n a
 nameMapFromList entries = NameMap (IntMap.fromList [ (Foil.nameId name, value) | (name, value) <- entries ])
+
+-- | Sink a name map's values and scope index. Entries for the new names must
+-- be added before the map is used at the extended scope.
+sinkNameMap :: Foil.Sinkable e => (Name n -> Name l) -> NameMap n (e n) -> NameMap l (e l)
+sinkNameMap rename (NameMap entries) = NameMap (fmap (Foil.sinkabilityProof rename) entries)
 
 -- | A substitution with one free name mapped to one value.
 singletonSubstitution :: Name i -> e o -> Substitution e i o

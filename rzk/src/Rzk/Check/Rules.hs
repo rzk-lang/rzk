@@ -568,7 +568,7 @@ underLet ty val body@(ScopedAST pat _) k = do
   validatePattern ty pat
   enterRawScope (\scope' pat' ctx ->
     enterPattern pat'
-      (letEntries scope' (sinkContextUnchecked ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
+      (letEntries scope' (sinkContextUnchecked scope' ctx) (ctxLocation ctx) (Foil.sink ty) (Foil.sink val) pat')
       ctx)
     body k
 

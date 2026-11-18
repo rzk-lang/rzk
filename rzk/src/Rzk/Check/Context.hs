@@ -1,7 +1,3 @@
--- The scope-extension constraint of 'sinkContextUnchecked' (a coercion) is
--- a contract for its callers, not an argument it uses, so GHC calls it
--- redundant. It is kept as the contract.
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE KindSignatures      #-}
@@ -52,18 +48,18 @@ module Rzk.Check.Context
   , withSubject
   ) where
 
-import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
+import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope,
+                                             sinkabilityProof)
 import qualified Control.Monad.Foil          as Foil
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
-import           Unsafe.Coerce               (unsafeCoerce)
 
 import qualified FreeFoil.NbE                as NbE
 import           FreeFoil.NbE.Definitions    (Unfolding (..))
 
 import           Language.Rzk.Foil.Names     (RzkPosition (..), TModality (..),
                                               VarIdent)
-import           Rzk.Check.Foil.Extras       (replaceName)
+import           Rzk.Check.Foil.Extras       (replaceName, sinkNameMap)
 import           Rzk.Check.Syntax
 import           Rzk.Check.Topes             (Tope, TopeContext,
                                               emptyTopeContext)
@@ -228,8 +224,11 @@ data Section n = Section
   , sectionEntries :: [Foil.Name n]
   }
 
-sinkEntries :: DExt n l => NameMap n (Entry n) -> NameMap n (Entry l)
-sinkEntries = Foil.sink1
+instance Foil.Sinkable Section where
+  sinkabilityProof rename (Section name entries) = Section name (map rename entries)
+
+sinkEntryValues :: DExt n l => NameMap n (Entry n) -> NameMap n (Entry l)
+sinkEntryValues = Foil.sink1
 
 -- * Diagnostics
 
@@ -250,6 +249,16 @@ data Action n
   | ActionCloseSection (Maybe String)
     -- ^ close a named section, or the anonymous module section
 
+instance Foil.Sinkable Action where
+  sinkabilityProof rename = \case
+    ActionCheck term ty -> ActionCheck (sinkabilityProof rename term) (sinkabilityProof rename ty)
+    ActionInfer term -> ActionInfer (sinkabilityProof rename term)
+    ActionConvert expected actual -> ActionConvert (sinkabilityProof rename expected) (sinkabilityProof rename actual)
+    ActionEntails topes goal -> ActionEntails (map (sinkabilityProof rename) topes) (sinkabilityProof rename goal)
+    ActionEntailsUnion topes goals -> ActionEntailsUnion (map (sinkabilityProof rename) topes) (map (sinkabilityProof rename) goals)
+    ActionCheckLetValue name -> ActionCheckLetValue name
+    ActionCloseSection name -> ActionCloseSection name
+
 -- | What a full run keeps for its diagnostics: the stack of judgements.
 data Diag n = Diag
   { diagActions :: [Action n]
@@ -257,6 +266,9 @@ data Diag n = Diag
   , diagDepth   :: !Int
     -- ^ the number of nested judgements, used by the termination cap
   }
+
+instance Foil.Sinkable Diag where
+  sinkabilityProof rename (Diag actions depth) = Diag (map (sinkabilityProof rename) actions) depth
 
 emptyDiag :: Diag n
 emptyDiag = Diag [] 0
@@ -329,21 +341,41 @@ lookupNamed name ctx = Map.lookup name (ctxNamed ctx)
 entriesInScope :: Context n -> [(Foil.Name n, Entry n)]
 entriesInScope ctx = [ (name, lookupEntry name ctx) | name <- reverse (ctxBound ctx) ]
 
--- | Sink a context along a scope extension. Unsound on its own: the scope
--- and the entries still describe the old scope, so the caller must extend
--- both, as 'enterPattern' does. Everything else in the context mentions
--- the scope only through values and names, which sink by coercion.
-sinkContextUnchecked :: DExt n l => Context n -> Context l
-sinkContextUnchecked = unsafeCoerce
+-- | Sink all scope-indexed parts of a context to an already-extended scope.
+-- The entry map is not total on the new names until 'enterPattern' adds them;
+-- callers can use the other fields to construct those entries.
+sinkContextUnchecked :: forall n l. DExt n l => Scope l -> Context n -> Context l
+sinkContextUnchecked scope' ctx =
+  let topes' = (Foil.sink (ctxTopes ctx) :: TopeContext l)
+      subject' = (fmap Foil.sink (ctxSubject ctx) :: Maybe (Core l))
+      sections' = (Foil.sink1 (ctxSections ctx) :: [Section l])
+      diag' = (Foil.sink (ctxDiag ctx) :: Diag l)
+  in Context
+    { ctxScope = scope'
+    , ctxEntries = sinkNameMap Foil.sink (ctxEntries ctx)
+    , ctxNamed = sinkNamed (ctxNamed ctx)
+    , ctxBound = sinkNames (ctxBound ctx)
+    , ctxTopes = topes'
+    , ctxSubject = subject'
+    , ctxVariance = ctxVariance ctx
+    , ctxUnfolding = ctxUnfolding ctx
+    , ctxApproximation = ctxApproximation ctx
+    , ctxOptions = ctxOptions ctx
+    , ctxLocation = ctxLocation ctx
+    , ctxSections = sections'
+    , ctxDiag = diag'
+    }
 
 -- | Enter the scope of a pattern: extend the scope with its names and
 -- record an entry for each, in binding order.
 enterPattern
   :: (Distinct n, DExt n l)
   => Pattern n l -> [Entry l] -> Context n -> Context l
-enterPattern pat entries ctx = (sinkContextUnchecked ctx)
-  { ctxScope = Foil.extendScopePattern pat (ctxScope ctx)
-  , ctxEntries = Foil.addNameBinders pat entries (sinkEntries (ctxEntries ctx))
+enterPattern pat entries ctx =
+  let scope' = Foil.extendScopePattern pat (ctxScope ctx)
+  in (sinkContextUnchecked scope' ctx)
+  { ctxScope = scope'
+  , ctxEntries = Foil.addNameBinders pat entries (sinkEntryValues (ctxEntries ctx))
   , ctxBound = reverse (map snd names) <> sinkNames (ctxBound ctx)
   , ctxNamed = foldr named (sinkNamed (ctxNamed ctx)) names
   }

@@ -2,7 +2,7 @@
 -- | The tope solver, on first-order topes.
 --
 -- A tope is read off a value into 'Tope', a first-order syntax with no
--- binders and no scope index, whose equality is structural and whose
+-- binders and scope-indexed free names, whose equality is structural and whose
 -- ordering keys a set. The solver is the saturation solver of
 -- "Rzk.TypeCheck.Eval" (Riehl and Shulman's tope logic, the lattice
 -- operations on the intervals, and the cover of a disjunction by
@@ -46,7 +46,8 @@ module Rzk.Check.Topes
   , inAlternatives
   ) where
 
-import           Control.Monad.Foil      (Name)
+import           Control.Monad.Foil      (Name, sinkabilityProof)
+import qualified Control.Monad.Foil      as Foil
 import           Data.List               (nub, tails)
 
 import qualified Data.Set                as Set
@@ -177,6 +178,45 @@ data ModalTope n = ModalTope
   , tTope     :: Tope n
   } deriving (Eq, Ord, Show)
 
+instance Foil.Sinkable Point where
+  sinkabilityProof rename = \case
+    PVar x c      -> PVar (rename x) c
+    PStar         -> PStar
+    P2_0          -> P2_0
+    P2_1          -> P2_1
+    PI_0          -> PI_0
+    PI_1          -> PI_1
+    PPair l r     -> PPair (sinkabilityProof rename l) (sinkabilityProof rename r)
+    PFst p        -> PFst (sinkabilityProof rename p)
+    PSnd p        -> PSnd (sinkabilityProof rename p)
+    PSup l r      -> PSup (sinkabilityProof rename l) (sinkabilityProof rename r)
+    PInf l r      -> PInf (sinkabilityProof rename l) (sinkabilityProof rename r)
+    PFlip p       -> PFlip (sinkabilityProof rename p)
+    PUnflip p     -> PUnflip (sinkabilityProof rename p)
+    PModApp md p  -> PModApp md (sinkabilityProof rename p)
+    PModExtract app inn p -> PModExtract app inn (sinkabilityProof rename p)
+    PApp c f a    -> PApp c (sinkabilityProof rename f) (sinkabilityProof rename a)
+    PHole m       -> PHole m
+    POpaque s     -> POpaque s
+
+instance Foil.Sinkable Tope where
+  sinkabilityProof rename = \case
+    TTop          -> TTop
+    TBot          -> TBot
+    TEq l r       -> TEq (sinkabilityProof rename l) (sinkabilityProof rename r)
+    TLeq l r      -> TLeq (sinkabilityProof rename l) (sinkabilityProof rename r)
+    TAnd l r      -> TAnd (sinkabilityProof rename l) (sinkabilityProof rename r)
+    TOr l r       -> TOr (sinkabilityProof rename l) (sinkabilityProof rename r)
+    TInv t        -> TInv (sinkabilityProof rename t)
+    TUninv t      -> TUninv (sinkabilityProof rename t)
+    TModal md t   -> TModal md (sinkabilityProof rename t)
+    TModApp md t  -> TModApp md (sinkabilityProof rename t)
+    TNeutral p    -> TNeutral (sinkabilityProof rename p)
+    THole m       -> THole m
+
+instance Foil.Sinkable ModalTope where
+  sinkabilityProof rename mt = mt { tTope = sinkabilityProof rename (tTope mt) }
+
 plainTope :: Tope n -> ModalTope n
 plainTope = ModalTope Id Id
 
@@ -209,6 +249,15 @@ data TopeContext n = TopeContext
   , tcSaturated     :: [[ModalTope n]]
     -- ^ each alternative saturated
   }
+
+instance Foil.Sinkable TopeContext where
+  sinkabilityProof rename tc = tc
+    { tcTopes = map (sinkabilityProof rename) (tcTopes tc)
+    , tcDiscrete = map (sinkabilityProof rename) (tcDiscrete tc)
+    , tcAlternatives = map (map (sinkabilityProof rename)) (tcAlternatives tc)
+    , tcEntailsBottom = tcEntailsBottom tc
+    , tcSaturated = map (map (sinkabilityProof rename)) (tcSaturated tc)
+    }
 
 -- | The empty context: ⊤ holds under every modality.
 emptyTopeContext :: TopeContext n
