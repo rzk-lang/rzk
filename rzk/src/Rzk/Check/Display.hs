@@ -246,7 +246,6 @@ fromCore used supply names = go
              (_, Nothing)      -> Rzk.LetModFramed loc (fromMod app) (fromMod inn) bind (go val) body'
              (_, Just motive)  -> Rzk.LetModFramedInto loc (fromMod app) (fromMod inn) bind (go val) (go motive) body'
 
-
     -- Display conjunction up to idempotence, using conservative syntactic
     -- equality so that elaboration's repeated domain conjunct is shown once.
     goConjunction :: Core n -> Core n -> Rzk.Term
