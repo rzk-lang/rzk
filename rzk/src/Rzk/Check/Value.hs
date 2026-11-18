@@ -348,8 +348,7 @@ instance Eval Context Pattern Sig where
   -- compared every two terms whose type is a cube; or if they are equal in
   -- every alternative of a disjunctive tope context, as the old unification
   -- retried a failed comparison in each alternative (a neutral restricted
-  -- on the faces of a horn is its face's term in each of them). This fallback
-  -- is invariant conversion, including when the enclosing check is subtyping.
+  -- on the faces of a horn is its face's term in each of them).
   {-# INLINE relateMismatch #-}
   relateMismatch scope ctx l r = pointsEqual || equalInEveryAlternative
     where
@@ -358,7 +357,7 @@ instance Eval Context Pattern Sig where
           && entails (ctxTopes ctx) (TEq (pointOf scope ctx l) (pointOf scope ctx r))
       equalInEveryAlternative = case alternatives (ctxTopes ctx) of
         []   -> False
-        alts -> all (\topes -> conv scope (withVariance Invariant (ctx { ctxTopes = topes })) l r) alts
+        alts -> all (\topes -> conv scope ctx { ctxTopes = topes } l r) alts
 
   -- Subtyping in the context's variance; the cases of the old unification
   -- that are not a structural comparison of the children.
