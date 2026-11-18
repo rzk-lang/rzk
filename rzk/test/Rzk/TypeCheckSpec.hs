@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Rzk.TypeCheckSpec (spec) where
 
-import           Control.Monad            (forM, unless, when)
+import           Control.Monad            (forM, forM_, unless, when)
 import qualified Control.Monad.Foil       as Foil
 import           Control.Monad.Free.Foil  (AST (..), ScopedAST (..))
 import           Data.Aeson               (FromJSON, withObject, (.:), (.:?))
@@ -347,6 +347,65 @@ spec = describe "Typecheck fixtures" $ do
     root <- runIO resolveRoot
     ks <- runIO (discoverCases root)
     mapM_ (\k -> it (caseTitle k) (runCaseNew k)) ks
+  describe "data and match under the new checker" $ do
+    forM_
+      [ "happy-data-empty.rzk"
+      , "happy-data-bool.rzk"
+      , "happy-data-coprod.rzk"
+      , "happy-data-nat.rzk"
+      , "happy-data-vec.rzk"
+      , "happy-data-section.rzk"
+      , "happy-data-rec-section.rzk"
+      , "happy-match-basics.rzk"
+      , "happy-match-indexed.rzk"
+      , "happy-match-case-vec.rzk"
+      , "happy-data-circle.rzk"
+      , "happy-data-prop-trunc.rzk"
+      , "happy-data-pushout.rzk"
+      , "happy-data-eliminator-reascription.rzk"
+      , "happy-data-hit-reascription.rzk" ] $ \name ->
+        it name $ do
+          root <- resolveRoot
+          (errs, _) <- runNewFile (root </> casesRoot </> name)
+          map Check.errorTag errs `shouldBe` []
+    it "warns about a large inductive type" $ do
+      root <- resolveRoot
+      (errs, warnings) <- runNewFile (root </> casesRoot </> "happy-data-large-warning.rzk")
+      map Check.errorTag errs `shouldBe` []
+      map Check.warningTag warnings `shouldContain` ["LargeInductiveTypeWarning"]
+    it "rejects non-strictly-positive and function-typed recursive fields" $ do
+      (negativeErrs, _) <- runNewSource $ T.unlines
+        [ "#lang rzk-1"
+        , "#data bad := c (f : bad → bad)"
+        ]
+      (functionErrs, _) <- runNewSource $ T.unlines
+        [ "#lang rzk-1"
+        , "#data nat := zero | suc (n : nat)"
+        , "#data w := node (f : nat → w)"
+        ]
+      map Check.errorTag negativeErrs `shouldBe` ["TypeErrorOther"]
+      map Check.errorTag functionErrs `shouldBe` ["TypeErrorOther"]
+    it "rejects a duplicate datatype name" $ do
+      let src = T.unlines
+            [ "#lang rzk-1"
+            , "#data bool := false | true"
+            , "#data bool := bottom | top"
+            ]
+      (errs, _) <- runNewSource src
+      map Check.errorTag errs `shouldBe` ["TypeErrorDuplicateTopLevel"]
+    forM_
+      [ ("ill-match-cannot-infer.rzk", "TypeErrorMatchCannotInfer")
+      , ("ill-match-branch-arity.rzk", "TypeErrorMatchBranchArity")
+      , ("ill-match-missing-branch.rzk", "TypeErrorMatchMissingBranch")
+      , ("ill-match-duplicate-branch.rzk", "TypeErrorMatchDuplicateBranch")
+      , ("ill-match-unknown-branch.rzk", "TypeErrorMatchUnknownBranch")
+      , ("ill-match-not-data.rzk", "TypeErrorMatchScrutineeNotData")
+      , ("ill-data-eliminator-mismatch.rzk", "TypeErrorReascribedTypeMismatch")
+      , ("ill-data-compute-mismatch.rzk", "TypeErrorReascribedTypeMismatch") ] $ \(name, tag) ->
+        it name $ do
+          root <- resolveRoot
+          (errs, _) <- runNewFile (root </> casesRoot </> name)
+          map Check.errorTag errs `shouldBe` [tag]
   it "collects an invalid unset option and a later error" $ do
     let src = T.unlines
           [ "#lang rzk-1"
@@ -369,7 +428,7 @@ spec = describe "Typecheck fixtures" $ do
   it "warns when an option is ignored" $ do
     let src = T.unlines
           [ "#lang rzk-1"
-          , "#set-option \"rstt-safe\" = \"yes\""
+          , "#set-option \"rstt-safe\" = \"warn\""
           ]
     case Rzk.parseModule src of
       Left err -> expectationFailure (T.unpack err)
@@ -493,6 +552,14 @@ runNew :: [(FilePath, Rzk.Module)] -> ([Check.ErrorInContext], [Check.Warning])
 runNew ms = case Check.checkModules newOptions ms of
   Check.Checked _ _ errs warnings _ _ -> (errs, warnings)
 
+runNewSource :: T.Text -> IO ([Check.ErrorInContext], [Check.Warning])
+runNewSource src = case Rzk.parseModule src of
+  Left err -> expectationFailure (T.unpack err) >> pure undefined
+  Right m  -> pure (runNew [("<test>", m)])
+
+runNewFile :: FilePath -> IO ([Check.ErrorInContext], [Check.Warning])
+runNewFile path = T.readFile path >>= runNewSource
+
 -- | The hints recorded by a run under the new checker.
 runNewHints :: [(FilePath, Rzk.Module)] -> [Check.Hint]
 runNewHints ms = case Check.checkModules newOptions ms of
@@ -508,8 +575,11 @@ fragmentFixture Expect{..} sources =
     || any (\src -> any (`T.isInfixOf` src) fragmentOptions) sources
   where
     fragmentOptions =
-      [ "\"rstt-safe\"", "\"warn-meta-prefix\"", "\"warn-meta-binder\""
-      , "\"warn-free-standing-restriction\"", "\"warn-shape-dependency\"" ]
+      [ "\"rstt-safe\" = \"warn\"", "\"rstt-safe\" = \"error\""
+      , "\"warn-meta-prefix\" = \"structural\"", "\"warn-meta-prefix\" = \"strict\""
+      , "\"warn-meta-binder\" = \"yes\""
+      , "\"warn-free-standing-restriction\" = \"yes\""
+      , "\"warn-shape-dependency\" = \"yes\"" ]
 
 assertExpectNew :: String -> Expect -> Bool -> [T.Text] -> ([Check.ErrorInContext], [Check.Warning]) -> IO ()
 assertExpectNew label expect@Expect{..} collect sources (errs, warnings) = case errs of
