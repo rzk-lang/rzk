@@ -1,0 +1,10 @@
+#lang rzk-1
+
+#data Choice := left | right
+
+#define modal-match-sharp-choice
+  (x :_# Choice)
+  : Unit
+  := match _# x
+       ( left => unit
+       | right => unit)

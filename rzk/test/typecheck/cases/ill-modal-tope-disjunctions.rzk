@@ -1,0 +1,20 @@
+#lang rzk-1
+
+#define sharp-three-hidden-cases (p q r :_b TOPE)
+  : (t : 1 | _# (p \/ (q \/ r))) -> Unit
+  := \ _ -> recOR ((_# p \/ (_# q \/ _# r)) |-> unit)
+
+#define mixed-cases-do-not-escape (p q r :_b TOPE)
+  : (t : 1 | p \/ _# (q \/ r)) -> Unit
+  := \ _ -> recOR ((_# p \/ (_# q \/ _# r)) |-> unit)
+
+#define sharp-conjunction-does-not-export-cases (p q r :_b TOPE)
+  : (t : 1 | _# (p /\ (q \/ r))) -> Unit
+  := \ _ -> recOR ((_# (p /\ q) \/ _# (p /\ r)) |-> unit)
+
+-- Successfully checking the first component under Sharp must not expose its
+-- cases in the outer context used to check the second component.
+#define sharp-cases-are-local (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> Sigma (_ : _# Unit) , Unit
+  := \ _ -> ( mod _# (recOR (p |-> unit, q |-> unit))
+            , recOR ((_# p \/ _# q) |-> unit) )

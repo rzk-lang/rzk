@@ -1,0 +1,5 @@
+status: ok
+regression_for:
+  - modal-tope-long-lock-chains-all-source-modalities
+  - modal-tope-pre-lock-cases-survive-later-hiding
+  - modal-tope-lock-composition-order

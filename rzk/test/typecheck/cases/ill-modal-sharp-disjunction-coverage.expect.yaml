@@ -1,0 +1,5 @@
+status: error
+error_tag: TypeErrorTopeNotSatisfied
+regression_for:
+  - modal-sharp-does-not-distribute-over-disjunction
+  - modal-recor-coverage-keeps-hidden-alternatives-intact

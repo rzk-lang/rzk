@@ -1,0 +1,67 @@
+#lang rzk-1
+
+#define sharp-bot-id : (t : 1 | _# BOT) -> Unit
+  := \ _ -> recBOT
+#define sharp-bot-op : (t : 1 | _# BOT) -> _op Unit
+  := \ _ -> mod _op recBOT
+#define sharp-bot-flat : (t : 1 | _# BOT) -> _b Unit
+  := \ _ -> mod _b recBOT
+#define sharp-bot-op-op : (t : 1 | _# BOT) -> _op _op Unit
+  := \ _ -> mod _op mod _op recBOT
+#define sharp-bot-flat-sharp : (t : 1 | _# BOT) -> _b _# Unit
+  := \ _ -> mod _b mod _# recBOT
+
+#define sharp-bot-does-not-prove-plain-goal (p :_b TOPE)
+  : (t : 1 | _# BOT) -> Unit
+  := \ _ -> recOR (p |-> unit)
+
+-- Arbitrary p and q do not make hidden BOT available, in any order.
+#define order-bpq (p q :_b TOPE)
+  : (t : 1 | (_# BOT /\ p) /\ q) -> Unit
+  := \ _ -> recBOT
+#define order-bqp (p q :_b TOPE)
+  : (t : 1 | (_# BOT /\ q) /\ p) -> Unit
+  := \ _ -> recBOT
+#define order-pbq (p q :_b TOPE)
+  : (t : 1 | (p /\ _# BOT) /\ q) -> Unit
+  := \ _ -> recBOT
+#define order-pqb (p q :_b TOPE)
+  : (t : 1 | (p /\ q) /\ _# BOT) -> Unit
+  := \ _ -> recBOT
+#define order-qbp (p q :_b TOPE)
+  : (t : 1 | (q /\ _# BOT) /\ p) -> Unit
+  := \ _ -> recBOT
+#define order-qpb (p q :_b TOPE)
+  : (t : 1 | (q /\ p) /\ _# BOT) -> Unit
+  := \ _ -> recBOT
+
+#define bind-bpq (p q :_b TOPE)
+  : (b : 1 | _# BOT) -> (x : 1 | p) -> (y : 1 | q) -> Unit
+  := \ _ _ _ -> recBOT
+#define bind-bqp (p q :_b TOPE)
+  : (b : 1 | _# BOT) -> (y : 1 | q) -> (x : 1 | p) -> Unit
+  := \ _ _ _ -> recBOT
+#define bind-pbq (p q :_b TOPE)
+  : (x : 1 | p) -> (b : 1 | _# BOT) -> (y : 1 | q) -> Unit
+  := \ _ _ _ -> recBOT
+#define bind-pqb (p q :_b TOPE)
+  : (x : 1 | p) -> (y : 1 | q) -> (b : 1 | _# BOT) -> Unit
+  := \ _ _ _ -> recBOT
+#define bind-qbp (p q :_b TOPE)
+  : (y : 1 | q) -> (b : 1 | _# BOT) -> (x : 1 | p) -> Unit
+  := \ _ _ _ -> recBOT
+#define bind-qpb (p q :_b TOPE)
+  : (y : 1 | q) -> (x : 1 | p) -> (b : 1 | _# BOT) -> Unit
+  := \ _ _ _ -> recBOT
+
+-- A contradiction in one alternative must not contaminate its sibling.
+#define impossible-case-does-not-prove-p (p q :_b TOPE)
+  : (t : 1 | ((0_2 === 1_2) /\ p) \/ q) -> Unit
+  := \ _ -> recOR (p |-> unit)
+#define impossible-case-does-not-prove-bot (p q :_b TOPE)
+  : (t : 1 | ((0_2 === 1_2) /\ p) \/ q) -> Unit
+  := \ _ -> recBOT
+
+#define nested-impossible-cases-stay-hidden
+  : (t : 1 | _# ((0_2 === 1_2) \/ ((0_I === 1_I) \/ (1_2 === 0_2)))) -> Unit
+  := \ _ -> recBOT
