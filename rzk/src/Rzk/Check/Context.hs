@@ -1,7 +1,3 @@
--- The scope-extension constraint of 'sinkContextUnchecked' (a coercion) is
--- a contract for its callers, not an argument it uses, so GHC calls it
--- redundant. It is kept as the contract.
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE KindSignatures      #-}
@@ -41,22 +37,22 @@ module Rzk.Check.Context
   , emptyDiag
     -- * The context
   , Context (..)
+  , ContextWithScope (..)
   , emptyContext
   , lookupEntry
   , lookupNamed
   , entriesInScope
   , enterPattern
-  , sinkContextUnchecked
   , insertEntry
   , withVariance
   , withSubject
   ) where
 
-import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope)
+import           Control.Monad.Foil          (DExt, Distinct, NameMap, Scope,
+                                             sinkabilityProof)
 import qualified Control.Monad.Foil          as Foil
 import           Data.Map                    (Map)
 import qualified Data.Map                    as Map
-import           Unsafe.Coerce               (unsafeCoerce)
 
 import qualified FreeFoil.NbE                as NbE
 import           FreeFoil.NbE.Definitions    (Unfolding (..))
@@ -228,8 +224,11 @@ data Section n = Section
   , sectionEntries :: [Foil.Name n]
   }
 
-sinkEntries :: DExt n l => NameMap n (Entry n) -> NameMap n (Entry l)
-sinkEntries = Foil.sink1
+instance Foil.Sinkable Section where
+  sinkabilityProof rename (Section name entries) = Section name (map rename entries)
+
+sinkEntryValues :: DExt n l => NameMap n (Entry n) -> NameMap n (Entry l)
+sinkEntryValues = Foil.sink1
 
 -- * Diagnostics
 
@@ -250,6 +249,16 @@ data Action n
   | ActionCloseSection (Maybe String)
     -- ^ close a named section, or the anonymous module section
 
+instance Foil.Sinkable Action where
+  sinkabilityProof rename = \case
+    ActionCheck term ty -> ActionCheck (sinkabilityProof rename term) (sinkabilityProof rename ty)
+    ActionInfer term -> ActionInfer (sinkabilityProof rename term)
+    ActionConvert expected actual -> ActionConvert (sinkabilityProof rename expected) (sinkabilityProof rename actual)
+    ActionEntails topes goal -> ActionEntails (map (sinkabilityProof rename) topes) (sinkabilityProof rename goal)
+    ActionEntailsUnion topes goals -> ActionEntailsUnion (map (sinkabilityProof rename) topes) (map (sinkabilityProof rename) goals)
+    ActionCheckLetValue name -> ActionCheckLetValue name
+    ActionCloseSection name -> ActionCloseSection name
+
 -- | What a full run keeps for its diagnostics: the stack of judgements.
 data Diag n = Diag
   { diagActions :: [Action n]
@@ -258,16 +267,17 @@ data Diag n = Diag
     -- ^ the number of nested judgements, used by the termination cap
   }
 
+instance Foil.Sinkable Diag where
+  sinkabilityProof rename (Diag actions depth) = Diag (map (sinkabilityProof rename) actions) depth
+
 emptyDiag :: Diag n
 emptyDiag = Diag [] 0
 
 -- * The context
 
 data Context n = Context
-  { ctxScope         :: Scope n
-    -- ^ the names in scope
-  , ctxEntries       :: NameMap n (Entry n)
-    -- ^ total on 'ctxScope'
+  { ctxEntries       :: NameMap n (Entry n)
+    -- ^ total on the scope at which the context is used
   , ctxNamed         :: Map VarIdent (Foil.Name n)
     -- ^ the surface name of each entry that has one
   , ctxBound         :: [Foil.Name n]
@@ -292,6 +302,11 @@ data Context n = Context
     -- ^ the stack of current judgements and its depth
   }
 
+-- | A context together with the scope at which it is used. Semantic
+-- operations take these separately; this pair is for the checker and its
+-- diagnostics.
+data ContextWithScope n = ContextWithScope (Scope n) (Context n)
+
 -- | The empty context, with 'defaultOptions'. Conversion starts covariantly,
 -- with definitions unfolded and the rigid approximation strategy.
 --
@@ -303,8 +318,7 @@ data Context n = Context
 -- ApproxRigid
 emptyContext :: Context Foil.VoidS
 emptyContext = Context
-  { ctxScope = Foil.emptyScope
-  , ctxEntries = Foil.emptyNameMap
+  { ctxEntries = Foil.emptyNameMap
   , ctxNamed = Map.empty
   , ctxBound = []
   , ctxTopes = emptyTopeContext
@@ -329,22 +343,33 @@ lookupNamed name ctx = Map.lookup name (ctxNamed ctx)
 entriesInScope :: Context n -> [(Foil.Name n, Entry n)]
 entriesInScope ctx = [ (name, lookupEntry name ctx) | name <- reverse (ctxBound ctx) ]
 
--- | Sink a context along a scope extension. Unsound on its own: the scope
--- and the entries still describe the old scope, so the caller must extend
--- both, as 'enterPattern' does. Everything else in the context mentions
--- the scope only through values and names, which sink by coercion.
-sinkContextUnchecked :: DExt n l => Context n -> Context l
-sinkContextUnchecked = unsafeCoerce
+-- | Sink a context using an entry map that is already total at the extended
+-- scope. A 'Context' cannot be 'Foil.Sinkable': sinking alone cannot supply
+-- the entries required by that totality invariant.
+sinkContextWithEntries :: DExt n l => NameMap l (Entry l) -> Context n -> Context l
+sinkContextWithEntries entries ctx = Context
+  { ctxEntries = entries
+  , ctxNamed = sinkNamed (ctxNamed ctx)
+  , ctxBound = sinkNames (ctxBound ctx)
+  , ctxTopes = Foil.sink (ctxTopes ctx)
+  , ctxVariance = ctxVariance ctx
+  , ctxSubject = Foil.sink1 (ctxSubject ctx)
+  , ctxUnfolding = ctxUnfolding ctx
+  , ctxApproximation = ctxApproximation ctx
+  , ctxOptions = ctxOptions ctx
+  , ctxLocation = ctxLocation ctx
+  , ctxSections = Foil.sink1 (ctxSections ctx)
+  , ctxDiag = Foil.sink (ctxDiag ctx)
+  }
 
--- | Enter the scope of a pattern: extend the scope with its names and
--- record an entry for each, in binding order.
+-- | Enter the scope of a pattern: record an entry for each of its names, in
+-- binding order. The caller supplies the extended scope separately.
 enterPattern
   :: (Distinct n, DExt n l)
   => Pattern n l -> [Entry l] -> Context n -> Context l
-enterPattern pat entries ctx = (sinkContextUnchecked ctx)
-  { ctxScope = Foil.extendScopePattern pat (ctxScope ctx)
-  , ctxEntries = Foil.addNameBinders pat entries (sinkEntries (ctxEntries ctx))
-  , ctxBound = reverse (map snd names) <> sinkNames (ctxBound ctx)
+enterPattern pat entries ctx =
+  (sinkContextWithEntries (Foil.addNameBinders pat entries (sinkEntryValues (ctxEntries ctx))) ctx)
+  { ctxBound = reverse (map snd names) <> sinkNames (ctxBound ctx)
   , ctxNamed = foldr named (sinkNamed (ctxNamed ctx)) names
   }
   where

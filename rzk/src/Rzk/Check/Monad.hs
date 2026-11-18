@@ -11,6 +11,7 @@ module Rzk.Check.Monad
   , emptyCheckLog
   , runCheck
   , askContext
+  , askScope
   , inContext
   , localContext
   , failWith
@@ -28,7 +29,7 @@ module Rzk.Check.Monad
   , withVarianceM
   ) where
 
-import           Control.Monad.Foil       (Distinct)
+import           Control.Monad.Foil       (Distinct, Scope)
 import           Debug.Trace              (trace)
 
 import           Rzk.Check.Context
@@ -38,7 +39,7 @@ import           Rzk.Check.Topes
 
 -- | The checker's monad.
 newtype Check n a = Check
-  { unCheck :: Context n -> CheckLog -> (Either ErrorInContext a, CheckLog) }
+  { unCheck :: ContextWithScope n -> CheckLog -> (Either ErrorInContext a, CheckLog) }
 
 instance Functor (Check n) where
   fmap f (Check m) = Check $ \ctx l -> case m ctx l of
@@ -72,7 +73,7 @@ data CheckLog = CheckLog
 emptyCheckLog :: CheckLog
 emptyCheckLog = CheckLog [] [] []
 
-runCheck :: Context n -> Check n a -> (Either ErrorInContext a, CheckLog)
+runCheck :: ContextWithScope n -> Check n a -> (Either ErrorInContext a, CheckLog)
 runCheck ctx (Check m) = m ctx emptyCheckLog
 
 -- | The depth of nested judgements at which checking gives up: the cap
@@ -81,16 +82,22 @@ maxDepth :: Int
 maxDepth = 1000
 
 askContext :: Check n (Context n)
-askContext = Check $ \ctx l -> (Right ctx, l)
+askContext = Check $ \(ContextWithScope _ ctx) l -> (Right ctx, l)
 {-# INLINE askContext #-}
 
+-- | The scope at which the current context is used.
+askScope :: Check n (Scope n)
+askScope = Check $ \(ContextWithScope scope _) l -> (Right scope, l)
+{-# INLINE askScope #-}
+
 -- | Run a judgement in another scope's context.
-inContext :: Context l -> Check l a -> Check n a
+inContext :: ContextWithScope l -> Check l a -> Check n a
 inContext ctx (Check m) = Check $ \_ l -> m ctx l
 {-# INLINE inContext #-}
 
 localContext :: (Context n -> Context n) -> Check n a -> Check n a
-localContext f (Check m) = Check $ \ctx l -> m (f ctx) l
+localContext f (Check m) = Check $ \(ContextWithScope scope ctx) l ->
+  m (ContextWithScope scope (f ctx)) l
 {-# INLINE localContext #-}
 
 -- | Raise an error, in the current context.
@@ -108,7 +115,7 @@ attempt (Check m) = Check $ \ctx l -> case m ctx l of
 -- | Run a judgement as an action on the stack, with the location narrowed
 -- to the term it is about.
 performing :: Distinct n => Action n -> Check n a -> Check n a
-performing action (Check m) = Check $ \ctx l ->
+performing action (Check m) = Check $ \ctxWithScope@(ContextWithScope scope ctx) l ->
   let diag = ctxDiag ctx
       depth = diagDepth diag
       ctx' = ctx
@@ -116,29 +123,31 @@ performing action (Check m) = Check $ \ctx l ->
         , ctxLocation = narrowLocation action (ctxLocation ctx)
         }
   in if depth >= maxDepth
-       then (Left (ErrorInContext ctx (TypeErrorOther "maximum depth reached")), l)
+       then (Left (ErrorInContext ctxWithScope (TypeErrorOther "maximum depth reached")), l)
        else if optVerbosity (ctxOptions ctx) <= Debug
-         then trace (unlines (map (replicate (2 * depth) ' ' <>) (lines (ppAction ctx action)))) (m ctx' l)
-         else m ctx' l
+         then trace (unlines (map (replicate (2 * depth) ' ' <>) (lines (ppAction scope ctx action))))
+              (m (ContextWithScope scope ctx') l)
+         else m (ContextWithScope scope ctx') l
 {-# INLINE performing #-}
 
 -- | Record a warning, rendered from the context, once.
 recordWarning :: (Context n -> Warning) -> Check n ()
-recordWarning render = Check $ \ctx l ->
+recordWarning render = Check $ \(ContextWithScope _ ctx) l ->
   let w = render ctx
   in (Right (), if w `elem` logWarnings l then l else l { logWarnings = w : logWarnings l })
 {-# INLINE recordWarning #-}
 
 -- | Record a hint, rendered from the context, once.
 recordHint :: (Context n -> Hint) -> Check n ()
-recordHint render = Check $ \ctx l ->
+recordHint render = Check $ \(ContextWithScope _ ctx) l ->
   let hint = render ctx
   in (Right (), if hint `elem` logHints l then l else l { logHints = hint : logHints l })
 {-# INLINE recordHint #-}
 
 -- | Record a hole, rendered from the context.
-recordHole :: (Context n -> HoleInfo) -> Check n ()
-recordHole render = Check $ \ctx l -> (Right (), l { logHoles = render ctx : logHoles l })
+recordHole :: (Scope n -> Context n -> HoleInfo) -> Check n ()
+recordHole render = Check $ \(ContextWithScope scope ctx) l ->
+  (Right (), l { logHoles = render scope ctx : logHoles l })
 {-# INLINE recordHole #-}
 
 -- | Point the location at the sub-term an action is about, when the

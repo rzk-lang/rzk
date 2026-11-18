@@ -67,8 +67,8 @@ compareWith
 compareWith mterm variance expected actual =
   performing (ActionConvert expected actual) $ do
     ctx <- askContext
+    scope <- askScope
     let topes = ctxTopes ctx
-        scope = ctxScope ctx
         ctx' = withSubject mterm (withVariance variance ctx)
         agrees c = conv scope (withVariance variance c) expected actual
     -- The value-level conversion retries in every alternative of a
@@ -85,7 +85,7 @@ explain
   => Maybe (Core n) -> Variance -> Value n -> Value n -> Check n ()
 explain mterm variance expected actual = do
   ctx <- askContext
-  let scope = ctxScope ctx
+  scope <- askScope
   tolerated <- maybe (pure False) holesTolerated mterm
   if tolerated then pure () else case (force expected, force actual) of
     -- both restricted: the underlying types, then the faces of the
@@ -126,7 +126,7 @@ explain mterm variance expected actual = do
               (super, sub) = case variance of
                 Contravariant -> (tE, tA)
                 _             -> (tA, tE)
-          unless holds $ inContext ctx' $
+          unless holds $ inContext (ContextWithScope scope' ctx') $
             issueTypeError (TypeErrorTopeNotSatisfied [super] sub)
         _ -> mismatch
     -- a function is a subtype of another when its applications are
@@ -137,7 +137,7 @@ explain mterm variance expected actual = do
             codE = codomainAt scope' ctx' (Foil.sink envE) retE x
             codA = codomainAt scope' ctx' (Foil.sink envA) retA x
             mterm' = fmap (\term -> App (Foil.sink term) (Var name)) mterm
-        inContext ctx' $ do
+        inContext (ContextWithScope scope' ctx') $ do
           -- the shapes: the expected one entails the actual one, as the
           -- domain is contravariant
           case (mshapeE, mshapeA) of
@@ -155,7 +155,7 @@ explain mterm variance expected actual = do
                     _             -> (tE, tA)
               unless holds $
                 issueTypeError (TypeErrorTopeNotSatisfied (accessibleTopes (assume super topes)) sub)
-            _ -> inContext ctx mismatch
+            _ -> inContext (ContextWithScope scope ctx) mismatch
           compareWith mterm' variance codE codA
     -- two lambdas: their bodies under a fresh variable of the actual one's
     -- domain, where both shapes hold, so that the mismatch is reported
@@ -170,7 +170,7 @@ explain mterm variance expected actual = do
             ctx'' = case mpE >>= paramShape of
               Nothing    -> ctx'
               Just shape -> assumeValue scope' ctx' (appValue scope' ctx' (Foil.sink shape) x)
-        inContext ctx'' $
+        inContext (ContextWithScope scope' ctx'') $
           compareWith Nothing variance
             (evalScope scope' ctx'' (Foil.sink envE) bodyE x)
             (evalScope scope' ctx'' (Foil.sink envA) bodyA x)
