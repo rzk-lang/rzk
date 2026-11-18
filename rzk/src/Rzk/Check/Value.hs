@@ -159,7 +159,6 @@ import           Data.List                   (intercalate)
 import           Data.Maybe                  (fromMaybe, listToMaybe)
 import           Data.Monoid                 (Any (..))
 import           Data.Void                   (Void)
-import           Unsafe.Coerce               (unsafeCoerce)
 
 import           FreeFoil.NbE                (EtaScoped (..), EtaTerm (..),
                                               Eval (..), Extend (..),
@@ -1011,18 +1010,19 @@ patternEntries
   => Scope l -> Context l -> TModality -> Maybe LocationInfo -> Value l -> Pattern n l -> [Entry l]
 patternEntries scope ctx md loc = go
   where
-    go :: (Distinct x, Distinct y) => Value l -> Pattern x y -> [Entry l]
+    go :: (Distinct x, DExt y l) => Value l -> Pattern x y -> [Entry l]
     go ty = \case
       PatternVar x _    -> [entryOf x ty]
       PatternWildcard _ -> [entryOf Nothing ty]
       PatternUnit       -> []
       PatternPair l r -> case Foil.assertDistinct l of
-        Foil.Distinct -> case NbE.force (stripRestrictions ty) of
-          VTypeSigma env _ a b ->
-            go (inherit firstValue a) l
-              <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
-          VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
-          _ -> panicImpossible "a pair pattern at a non-pair type"
+        Foil.Distinct -> case Foil.assertExt r of
+          Foil.Ext -> case NbE.force (stripRestrictions ty) of
+            VTypeSigma env _ a b ->
+              go (inherit firstValue a) l
+                <> go (inherit secondValue (evalScope scope ctx env b (patternValueIn l))) r
+            VCubeProduct a b -> go (inherit firstValue a) l <> go (inherit secondValue b) r
+            _ -> panicImpossible "a pair pattern at a non-pair type"
       where
         -- A component of a restricted pair is restricted to the same
         -- component of each boundary pair.
@@ -1030,9 +1030,9 @@ patternEntries scope ctx md loc = go
           [] -> component
           rs -> NbE.vnode (TypeRestrictedF component [ (tope, project face) | (tope, face) <- rs ])
     -- The names of a subpattern also belong to the whole pattern's scope.
-    -- free-foil does not expose the prefix-to-final-scope evidence here.
-    patternValueIn :: (Distinct x, Distinct y) => Pattern x y -> Value l
-    patternValueIn = unsafeCoerce . patternValue
+    -- The right subpattern supplies the extension evidence for sinking.
+    patternValueIn :: (Distinct x, DExt y l, Distinct y) => Pattern x y -> Value l
+    patternValueIn = Foil.sink . patternValue
     entryOf mname t = localEntry md mname loc t
 
 -- | The entries of a let's pattern: each name has its component of the
