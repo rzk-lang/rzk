@@ -255,9 +255,9 @@ data Sig scope term
     -- ^ the inverse operation to 'TopeInvF'
   | RecBottomF
     -- ^ ex falso, @recBOT@
-  | RecOrF (Maybe term) [(term, term)]
-    -- ^ a raw @recOR@ has no type; elaboration attaches its type, which a
-    -- stuck semantic @recOR@ needs when it heads an elimination
+  | RecOrF [(term, term)]
+    -- ^ a @recOR@ and its guarded branches; a stuck semantic one carries its
+    -- type in an enclosing 'AnnF'
   | TypeFunF TModality term (Maybe term) scope
     -- ^ a Π: the modality of the binder, its domain (a type, or the cube of
     -- a shape), the shape as a tope family over the cube, and the codomain
@@ -430,10 +430,8 @@ pattern TopeUninv :: Core n -> Core n
 pattern TopeUninv t = Node (TopeUninvF t)
 pattern RecBottom :: Core n
 pattern RecBottom = Node RecBottomF
--- | An elaborated @recOR@, with its cached type. This does not match the
--- unelaborated 'RecOrF' with 'Nothing'.
-pattern RecOr :: Core n -> [(Core n, Core n)] -> Core n
-pattern RecOr ty rs = Node (RecOrF (Just ty) rs)
+pattern RecOr :: [(Core n, Core n)] -> Core n
+pattern RecOr rs = Node (RecOrF rs)
 pattern TypeFun :: TModality -> Core n -> Maybe (Core n) -> ScopedCore n -> Core n
 pattern TypeFun md dom mshape ret = Node (TypeFunF md dom mshape ret)
 pattern TypeShape :: TModality -> Core n -> Maybe (Core n) -> Core n
@@ -487,7 +485,7 @@ pattern Hole mname = Node (HoleF mname)
 {-# COMPLETE Var, Universe, UniverseCube, UniverseTope, CubeUnit, CubeUnitStar,
   Cube2, Cube2_0, Cube2_1, CubeI, CubeI_0, CubeI_1, CubeProduct, CubeFlip,
   CubeUnflip, CubeSup, CubeInf, TopeTop, TopeBottom, TopeEQ, TopeLEQ, TopeAnd,
-  TopeOr, TopeInv, TopeUninv, RecBottom, TypeFun, TypeShape, TypeSigma, TypeId, App,
+  TopeOr, TopeInv, TopeUninv, RecBottom, RecOr, TypeFun, TypeShape, TypeSigma, TypeId, App,
   Let, Lambda, Pair, First, Second, Refl, IdJ, Match, MatchArm, Unit, TypeUnit,
   TypeAsc, Ann, TypeRestricted, TypeModal, ModApp, ModExtract, LetMod, Hole #-}
 
@@ -552,7 +550,7 @@ pattern RTopeUninv x1 <- RawNode (TopeUninvF x1)
 pattern RRecBottom :: Raw n
 pattern RRecBottom <- RawNode RecBottomF
 pattern RRecOr :: [(Raw n, Raw n)] -> Raw n
-pattern RRecOr x1 <- RawNode (RecOrF Nothing x1)
+pattern RRecOr x1 <- RawNode (RecOrF x1)
 pattern RTypeFun :: TModality -> Raw n -> Maybe (Raw n) -> ScopedRaw n -> Raw n
 pattern RTypeFun x1 x2 x3 x4 <- RawNode (TypeFunF x1 x2 x3 x4)
 pattern RTypeShape :: TModality -> Raw n -> Maybe (Raw n) -> Raw n
@@ -612,7 +610,7 @@ pattern RHole x1 <- RawNode (HoleF x1)
 freeNamesOf :: Distinct n => Core n -> [Foil.Name n]
 freeNamesOf (Var x) = [x]
 freeNamesOf (Ann t _) = freeNamesOf t
-freeNamesOf (Node (RecOrF _ branches)) =
+freeNamesOf (Node (RecOrF branches)) =
   foldMap (\(tope, branch) -> freeNamesOf tope <> freeNamesOf branch) branches
 freeNamesOf (Node sig) = bifoldMap scoped freeNamesOf sig
   where
@@ -652,7 +650,7 @@ abstractName scope mname name term k = Foil.withFresh scope $ \binder ->
 containsHole :: Core n -> Bool
 containsHole (Var _) = False
 containsHole (Ann t _) = containsHole t
-containsHole (Node (RecOrF _ branches)) =
+containsHole (Node (RecOrF branches)) =
   any (\(tope, branch) -> containsHole tope || containsHole branch) branches
 containsHole (Node (HoleF _)) = True
 containsHole (Node sig) =

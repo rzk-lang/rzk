@@ -261,7 +261,9 @@ instance Eval Context Pattern Sig where
     AppF fun arg -> appValue scope ctx (ev fun) (ev arg)
     FirstF p -> firstValueIn scope ctx (ev p)
     SecondF p -> secondValueIn scope ctx (ev p)
-    AnnF term _ -> ev term
+    AnnF term ty -> NbE.eliminate (ev term) $ \case
+      VRecOr rs -> NbE.vnode (AnnF (NbE.vnode (RecOrF rs)) (ev ty))
+      other -> NbE.fromWhnf other
     LetF _mty val body -> evalScope scope ctx env body (ev val)
     TypeAscF term _ty -> ev term
     IdJF tA a tC d x p -> idJValueIn scope ctx (ev tA) (ev a) (ev tC) (ev d) (ev x) (ev p)
@@ -275,14 +277,14 @@ instance Eval Context Pattern Sig where
         rs' -> NbE.vnode (TypeRestrictedF (ev ty) [ (tope', ev face) | (tope', face) <- rs' ])
     -- The branch whose guard the tope context entails; otherwise the one
     -- branch if they are all the same term; otherwise stuck.
-    RecOrF mty rs ->
+    RecOrF rs ->
       let rs' = [ (ev guard, branch) | (guard, branch) <- rs ]
       in case [ branch | (guard, branch) <- rs', entailsValue scope ctx guard ] of
            branch : _ -> ev branch
            [] -> case map snd rs of
              branch : branches
                | all (eqCore branch) branches -> ev branch
-             _ -> NbE.vnode (RecOrF (fmap ev mty) [ (guard, ev branch) | (guard, branch) <- rs' ])
+             _ -> NbE.vnode (RecOrF [ (guard, ev branch) | (guard, branch) <- rs' ])
     -- the cube layer
     CubeFlipF t -> case NbE.force (ev t) of
       VCubeUnflip t' -> t'
@@ -389,7 +391,7 @@ instance Eval Context Pattern Sig where
     -- corresponding branch comparison: coherence of both recORs supplies
     -- every other overlap. An unmatched guard keeps the full cross-product
     -- comparison. A recOR against another term agrees with it under each guard.
-    (RecOrF _ rsL, RecOrF _ rsR) ->
+    (RecOrF rsL, RecOrF rsR) ->
       let rsL' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsL ]
           rsR' = [ (topeOf scope ctx tope, (tope, branch)) | (tope, branch) <- rsR ]
       in Just $ mconcat $ compareRestrictionsWith
@@ -398,9 +400,9 @@ instance Eval Context Pattern Sig where
           [ underOverlap (topeAndValue topeL topeR) (term branchL branchR)
           | (_, (topeR, branchR)) <- rsR'' ])
         rsL' rsR'
-    (RecOrF _ rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
+    (RecOrF rsL, _) | Just rv <- nodeValue r -> Just $ mconcat
       [ underOverlap tL (term bL rv) | (tL, bL) <- rsL ]
-    (_, RecOrF _ rsR) | Just lv <- nodeValue l -> Just $ mconcat
+    (_, RecOrF rsR) | Just lv <- nodeValue l -> Just $ mconcat
       [ underOverlap tR (term lv bR) | (tR, bR) <- rsR ]
 
     -- two topes are compared by entailment in the context's variance: the
@@ -536,11 +538,13 @@ instance Eval Context Pattern Sig where
     FirstF{}  -> refineNeutral scope ctx value
     SecondF{} -> refineNeutral scope ctx value
     IdJF{}    -> refineNeutral scope ctx value
+    AnnF term _
+      | VRecOr rs <- NbE.force term, Just b <- entailedRecOrBranch scope ctx rs -> NbE.refine scope ctx b
     AnnF{}    -> refineNeutral scope ctx value
     -- a recOR evaluated before its guard was assumed takes the branch the
     -- context now entails, as the old checker decided it in its weak head
     -- normal form (a type cached in an annotation may hold one)
-    RecOrF _ rs | b : _ <- [ b | (guard, b) <- rs, entailsValue scope ctx guard ] -> NbE.refine scope ctx b
+    RecOrF rs | Just b <- entailedRecOrBranch scope ctx rs -> NbE.refine scope ctx b
     _         -> value
 
   -- A pattern stands for its names paired; bound to a value, its leaves
@@ -609,6 +613,10 @@ refinedNeutral scope ctx value = do
     VTypeUnit -> Just vunit
     _ -> refineNeutral scope ctx <$>
            listToMaybe [ t | (tope, t) <- restrictionsOf ty, entailsValue scope ctx tope ]
+
+-- | The first branch of a @recOR@ whose guard the context entails.
+entailedRecOrBranch :: Distinct n => Scope n -> Context n -> [(Value n, Value n)] -> Maybe (Value n)
+entailedRecOrBranch scope ctx rs = listToMaybe [ b | (guard, b) <- rs, entailsValue scope ctx guard ]
 
 -- * Evaluation and readback
 
@@ -758,8 +766,8 @@ pattern VTopeUninv :: Value n -> Whnf n
 pattern VTopeUninv x1 <- NbE.VNode (TopeUninvF x1)
 pattern VRecBottom :: Whnf n
 pattern VRecBottom <- NbE.VNode RecBottomF
-pattern VRecOr :: Value n -> [(Value n, Value n)] -> Whnf n
-pattern VRecOr ty rs <- NbE.VNode (RecOrF (Just ty) rs)
+pattern VRecOr :: [(Value n, Value n)] -> Whnf n
+pattern VRecOr rs <- NbE.VNode (RecOrF rs)
 pattern VTypeFun :: () => Distinct i => Env i n -> TModality -> Value n -> Maybe (Value n) -> ScopedCore i -> Whnf n
 pattern VTypeFun env x1 x2 x3 x4 <- NbE.VSuspended env (TypeFunF x1 x2 x3 x4)
 pattern VTypeShape :: TModality -> Value n -> Maybe (Value n) -> Whnf n
@@ -879,7 +887,7 @@ isNeutralValue v = case NbE.forceFolded v of
   VFirst p -> isNeutralValue p
   VSecond p -> isNeutralValue p
   VIdJ _ _ _ _ _ p -> isNeutralValue p
-  VRecOr _ _ -> True
+  VRecOr _ -> True
   _ -> False
 
 -- | A value known to be a semantic neutral. The constructor is internal;
@@ -1206,7 +1214,7 @@ recOrValue scope ctx rs =
     b : _ -> b
     [] -> case rs of
       (_, b) : rest | all (conv scope (withSubject Nothing (withVariance Invariant ctx)) b . snd) rest -> b
-      _ -> NbE.vnode (RecOrF (Just universe) rs)
+      _ -> NbE.vnode (AnnF (NbE.vnode (RecOrF rs)) universe)
 
 -- | The conjunction of two tope values, with ⊥ absorbing.
 topeAndValue :: Value n -> Value n -> Value n
@@ -1307,7 +1315,6 @@ neutralType :: Distinct n => Scope n -> Context n -> Neutral n -> Value n
 neutralType scope ctx (Neutral v) = case NbE.forceFolded v of
   NbE.VVar x -> entryType (lookupEntry x ctx)
   VAnn _ ty -> ty
-  VRecOr ty _ -> ty
   VApp f a ->
     let fTy = neutralType scope ctx (Neutral f)
     in case familyOf fTy of

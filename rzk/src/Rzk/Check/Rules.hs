@@ -601,7 +601,7 @@ checkRecOrAgainst ty rs = do
   sequence_ [ checkCoherence l r | l : rest <- tails (map snd branches), r <- rest ]
   contextEntailsUnion (map (fst . snd) branches)
   tyC <- quoteM ty
-  pure (RecOr tyC (map fst branches))
+  pure (Ann (RecOr (map fst branches)) tyC)
 
 -- * Inference
 
@@ -789,7 +789,7 @@ infer tt = performing (ActionInfer tt) $ case tt of
     contextEntailsUnion [ t | (_, (t, _), _) <- branches ]
     let ty = recOrValue scope ctx [ t | (_, _, t) <- branches ]
     tyC <- quoteM ty
-    pure (RecOr tyC [ b | (b, _, _) <- branches ], ty)
+    pure (Ann (RecOr [ b | (b, _, _) <- branches ]) tyC, ty)
 
   RTypeFun md a Nothing b -> do
     when (md /= Id) $ issueTypeError (TypeErrorUnsupported "a modal binder")

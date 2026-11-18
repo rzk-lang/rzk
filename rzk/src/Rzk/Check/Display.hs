@@ -139,7 +139,7 @@ fromCore used supply names = go
       TopeInv t -> Rzk.TopeInv loc (go t)
       TopeUninv t -> Rzk.TopeUninv loc (go t)
       RecBottom -> Rzk.RecBottom loc
-      Node (RecOrF _ rs) -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
+      RecOr rs -> Rzk.RecOr loc [ Rzk.Restriction loc (go tope) (go term) | (tope, term) <- rs ]
       Hole mname -> Rzk.Hole loc (Rzk.HoleIdent loc (Rzk.HoleIdentToken (holeIdentToken mname)))
 
       -- an anonymous binder the codomain does not use is not shown

@@ -407,7 +407,8 @@ spec = describe "Typecheck fixtures" $ do
   it "ignores cached types in hole and free-name queries" $ do
     let hole = CheckSyntax.Hole Nothing :: CheckSyntax.Core Foil.VoidS
         ann = CheckSyntax.Ann CheckSyntax.Unit hole
-        recOr = CheckSyntax.RecOr hole [(CheckSyntax.TopeTop, CheckSyntax.Unit)]
+        recOr = CheckSyntax.RecOr [(CheckSyntax.TopeTop, CheckSyntax.Unit)]
+          :: CheckSyntax.Core Foil.VoidS
     CheckSyntax.containsHole ann `shouldBe` False
     CheckSyntax.containsHole recOr `shouldBe` False
     CheckSyntax.freeNamesOf ann `shouldBe` []
@@ -415,9 +416,9 @@ spec = describe "Typecheck fixtures" $ do
     CheckSyntax.containsHole (CheckSyntax.Ann hole CheckSyntax.Unit) `shouldBe` True
     CheckSyntax.containsHole (CheckSyntax.TypeAsc CheckSyntax.Unit hole) `shouldBe` True
     CheckSyntax.containsHole
-      (CheckSyntax.RecOr CheckSyntax.Unit [(CheckSyntax.TopeTop, hole)]) `shouldBe` True
+      (CheckSyntax.RecOr [(CheckSyntax.TopeTop, hole)]) `shouldBe` True
   it "displays a recOR before its type is attached" $ do
-    let term = Node (CheckSyntax.RecOrF Nothing [(CheckSyntax.TopeTop, CheckSyntax.Unit)])
+    let term = Node (CheckSyntax.RecOrF [(CheckSyntax.TopeTop, CheckSyntax.Unit)])
           :: CheckSyntax.Core Foil.VoidS
     CheckDisplay.ppCore (CheckDisplay.namingOfContext Check.emptyContext) term
       `shouldContain` "recOR"
