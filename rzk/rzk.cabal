@@ -763,7 +763,8 @@ executable rzk
     cpp-options: -DLSP_ENABLED
   if !impl(ghcjs)
     build-depends:
-        optparse-generic >=1.4.7 && <2
+        optparse-applicative >=0.16 && <0.20
+      , optparse-generic >=1.4.7 && <2
       , with-utf8 >=1.0.3.0 && <2
 
 test-suite doctests
