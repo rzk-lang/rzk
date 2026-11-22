@@ -100,3 +100,15 @@
   : _# A
   := match _# x
        (box value => mod _# value)
+
+-- Sharp matching also supports indexed one-constructor types, with modal
+-- indices and an explicit motive (not just product-like types such as Box).
+#data Id (A : U) (a : A) : A -> U
+  := refl-con : Id A a a
+
+#define sharp-indexed-identity
+  (A :_# U) (a :_# A) (x :_# Id A a a)
+  : _# Unit
+  := match _# x into
+       (\ (b :_# A) (_ :_# Id A a b) -> _# Unit)
+       (refl-con => mod _# unit)

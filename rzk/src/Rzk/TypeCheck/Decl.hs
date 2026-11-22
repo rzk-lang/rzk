@@ -1118,6 +1118,9 @@ withDataDecls path used name paramVars paramDecls sortIndices consData elims k =
             , esEndpointV = endpointV, esPathV = pathV, esTransportV = transportV
             , esConsData = consData, esPathData = pathData }
           isRecursive = any (not . null . dataConRecursive) consData
+          -- TODO: Determine whether Op-eliminators can be generated for recursive types.
+          -- For now, they are conservatively generated only for non-recursive types.
+          -- Extend this support once the recursive case has been validated.
           modalities
             | hasPaths || isRecursive = [Id]
             | length consData == 1 = [Id, Op, Flat, Sharp]
