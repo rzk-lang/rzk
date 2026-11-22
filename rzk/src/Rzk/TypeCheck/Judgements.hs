@@ -1238,6 +1238,10 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
       isPathConstructor c = case varDataRole (lookupVarInfo c ctx) of
         Just (DataRole _ _ (DataConKind PathCon _ _ _)) -> True
         _                                                -> False
+      hasRecursiveField = any isRecursiveConstructor cons
+      isRecursiveConstructor c = case varDataRole (lookupVarInfo c ctx) of
+        Just (DataRole _ _ (DataConKind _ _ _ recIdxs)) -> not (null recIdxs)
+        _                                                -> False
   -- The eliminator to elaborate into: @ind-D@ when the motive genuinely
   -- depends on the scrutinee (an @into@ motive, or a variable scrutinee
   -- occurring in the goal); @rec-D@ otherwise. The choice matters for path
@@ -1259,12 +1263,15 @@ checkMatch term matchMd scrut mmotive branches mgoal = do
       , md == matchMd
       , ek == wantedKind ] of
     (e, DataRole _ numParams _) : _ -> pure (e, numParams)
-    [] | matchMd == Sharp ->
-      issueTypeError $ TypeErrorOther
-        "modal match is not supported for ♯: ♯ does not preserve coproducts or recursion"
     [] | matchMd /= Id && hasPathConstructor ->
       issueTypeError $ TypeErrorOther
         "modal match is not supported for higher inductive types"
+    [] | matchMd /= Id && hasRecursiveField ->
+      issueTypeError $ TypeErrorOther
+        "modal match is not supported for recursive inductive types"
+    [] | matchMd == Sharp && length cons /= 1 ->
+      issueTypeError $ TypeErrorOther
+        "sharp (♯) match is only supported for inductive types with one constructor"
     [] -> issueTypeError (TypeErrorMatchScrutineeNotData scrut' scrutTy)
   let dargs = case collectAppSpine scrutTy of
         (_, args) -> map snd args

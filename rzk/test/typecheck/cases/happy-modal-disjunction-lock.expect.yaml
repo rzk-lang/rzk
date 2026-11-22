@@ -1,0 +1,6 @@
+status: ok
+regression_for:
+  - modal-disjunction-alternatives-recomputed-after-entering-sharp
+  - modal-conversion-alternatives-recomputed-after-entering-sharp
+  - plain-disjunctive-conversion-preserved
+  - modal-alternatives-preserve-pre-lock-case-splits

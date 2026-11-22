@@ -1,0 +1,9 @@
+#lang rzk-1
+
+-- Conversion must not retry under fictitious outer Sharp cases either.
+#define no-sharp-conversion
+  (A : U) (a : A)
+  : (i : II | _# ((i === 0_I) \/ (i === 1_I)))
+  -> (z : A [ _# (i === 0_I) |-> a , _# (i === 1_I) |-> a ])
+  -> z =_{A} a
+  := \ i z -> refl_{z}

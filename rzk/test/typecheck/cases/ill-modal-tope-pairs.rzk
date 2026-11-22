@@ -1,0 +1,63 @@
+#lang rzk-1
+
+-- Every unavailable source/lock pair must independently fail coverage.
+#define id-under-op (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> _op Unit
+  := \ _ -> mod _op (recOR (p |-> unit, q |-> unit))
+
+#define id-under-flat (p q :_b TOPE)
+  : (t : 1 | p \/ q) -> _b Unit
+  := \ _ -> mod _b (recOR (p |-> unit, q |-> unit))
+
+#define op-under-id (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define op-under-flat (p q :_b TOPE)
+  : (t : 1 | _op (p \/ q)) -> _b Unit
+  := \ _ -> mod _b (recOR (p |-> unit, q |-> unit))
+
+#define sharp-under-id (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define sharp-under-op (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> _op Unit
+  := \ _ -> mod _op (recOR (p |-> unit, q |-> unit))
+
+#define sharp-under-flat (p q :_b TOPE)
+  : (t : 1 | _# (p \/ q)) -> _b Unit
+  := \ _ -> mod _b (recOR (p |-> unit, q |-> unit))
+
+-- The other eight compositions remain hidden at the identity lock.
+#define id-op (p q :_b TOPE)
+  : (t : 1 | _id (_op (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define id-sharp (p q :_b TOPE)
+  : (t : 1 | _id (_# (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define op-id (p q :_b TOPE)
+  : (t : 1 | _op (_id (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define op-sharp (p q :_b TOPE)
+  : (t : 1 | _op (_# (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define sharp-id (p q :_b TOPE)
+  : (t : 1 | _# (_id (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define sharp-op (p q :_b TOPE)
+  : (t : 1 | _# (_op (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define sharp-flat (p q :_b TOPE)
+  : (t : 1 | _# (_b (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)
+
+#define sharp-sharp (p q :_b TOPE)
+  : (t : 1 | _# (_# (p \/ q))) -> Unit
+  := \ _ -> recOR (p |-> unit, q |-> unit)

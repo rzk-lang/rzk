@@ -1,0 +1,6 @@
+status: ok
+regression_for:
+  - modal-tope-bot-lock-chains
+  - modal-tope-hidden-bot-preserves-other-premises
+  - modal-tope-context-order-independence
+  - modal-tope-contradictory-alternatives-are-branch-local

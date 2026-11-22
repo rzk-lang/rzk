@@ -2,9 +2,9 @@
 
 #data Nat := zero | suc (pred : Nat)
 
-#define modal-match-ih-remodalized
+#define modal-match-recursive
   (x :_b Nat)
   : Unit
   := match _b x
        ( zero => unit
-       | suc pred ih => let _b copy := ih in unit)
+       | suc _ _ => unit)

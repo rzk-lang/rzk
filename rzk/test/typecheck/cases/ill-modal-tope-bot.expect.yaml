@@ -1,0 +1,8 @@
+status: error
+api: collect
+error_tag: TypeErrorTopeNotSatisfied
+error_count: 21
+regression_for:
+  - modal-tope-hidden-bot-does-not-escape
+  - modal-tope-context-order-independence
+  - modal-tope-contradiction-does-not-leak-between-alternatives
