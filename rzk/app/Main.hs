@@ -19,6 +19,7 @@ import           Language.Rzk.VSCode.Lsp (runLsp)
 #endif
 
 import           Options.Generic
+import qualified Options.Applicative     as O
 import           System.Exit             (exitFailure, exitSuccess)
 
 import           Data.Aeson              (encode)
@@ -76,12 +77,16 @@ data Command
   | Version VersionOptions
   deriving (Generic, Show, ParseRecord)
 
+-- | Top-level @rzk --version@, printing the same string as @rzk version@.
+versionFlag :: O.Parser (a -> a)
+versionFlag = O.infoOption versionString (O.long "version" <> O.help "Show version")
+
 main :: IO ()
 main = do
 #ifndef __GHCJS__
   withUtf8 $
 #endif
-    getRecord "rzk: an experimental proof assistant for synthetic ∞-categories" >>= \case
+    O.customExecParser (O.prefs (O.multiSuffix "...")) (O.info (versionFlag <*> parseRecord) (O.fullDesc <> O.header "rzk: an experimental proof assistant for synthetic ∞-categories")) >>= \case
     Typecheck (TypecheckOptions {typecheckAllowHoles = allowHolesFlag, typecheckJson = jsonFlag, typecheckRSTTSafe = safeFlag}) paths -> do
       safeOverride <- case safeFlag of
         Nothing -> pure Nothing

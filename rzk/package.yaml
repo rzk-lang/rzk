@@ -149,6 +149,7 @@ executables:
       - condition: "!impl(ghcjs)"
         dependencies:
           with-utf8: ">= 1.0.3.0 && < 2"
+          optparse-applicative: ">= 0.16 && < 0.20"
           optparse-generic: ">= 1.4.7 && < 2"
 
 tests:
