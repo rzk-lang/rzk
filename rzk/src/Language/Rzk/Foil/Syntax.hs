@@ -45,7 +45,7 @@ import           Control.Monad.Free.Foil        (AST (..), ScopedAST (..),
                                                  alphaEquiv,
                                                  substitute, unsafeEqAST)
 import           Data.ZipMatchK                 (Mappings (..),
-                                                 ZipMatchFoldK,
+                                                 ZipMatchFoldK (..),
                                                  ZipMatchK (..),
                                                  zipMatchViaChooseLeft,
                                                  zipMatchViaEq)
@@ -201,6 +201,11 @@ deriveZipMatchK ''TermSig
 instance ZipMatchK TypeInfo where
   zipMatchWithK (f :^: M0) (TypeInfo t1 _ _) (TypeInfo t2 _ _) =
     Just (TypeInfo (maybe (error "ZipMatchK TypeInfo: annotation forced") id (f t1 t2)) Nothing Nothing)
+
+-- | The folds of a match skip the annotation, as the match itself does: two
+-- nodes match whatever their types.
+instance ZipMatchFoldK TypeInfo where
+  zipMatchFoldK _ _ _ = Just mempty
 
 -- | Where a term was written.
 --

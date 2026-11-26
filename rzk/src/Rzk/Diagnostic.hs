@@ -236,6 +236,27 @@ diagnoseCheckWarning (LargeInductiveTypeWarning dataName conName loc) = Diagnost
         <> " lives above U"
   , diagnosticHole     = Nothing
   }
+diagnoseCheckWarning (NbEUnsoundWarning expected actual loc) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "NbEUnsoundWarning"
+  , diagnosticLocation = loc
+  , diagnosticMessage  =
+      "the generic conversion fast path accepts a comparison the unification rejects:\n  "
+        <> expected <> "\nagainst\n  " <> actual
+  , diagnosticHole     = Nothing
+  }
+diagnoseCheckWarning (NbEDifferentialReport stats) = Diagnostic
+  { diagnosticSeverity = SeverityWarning
+  , diagnosticCode     = "NbEDifferentialReport"
+  , diagnosticLocation = Nothing
+  , diagnosticMessage  = intercalate ", "
+      [ "conversion fast paths on " <> show (nbeQueries stats) <> " queries"
+      , "generic " <> show (nbeGenericHits stats)
+      , "spine " <> show (nbeSpineHits stats)
+      , "generic only " <> show (nbeGenericOnly stats)
+      , "spine only " <> show (nbeSpineOnly stats) ]
+  , diagnosticHole     = Nothing
+  }
 diagnoseCheckWarning (MetaPrefixWarning defName usedName supplied required rule loc) = Diagnostic
   { diagnosticSeverity = SeverityWarning
   , diagnosticCode     = case rule of

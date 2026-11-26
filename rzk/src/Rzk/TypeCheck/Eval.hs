@@ -354,7 +354,17 @@ enterModality md action = do
 
 -- | Assume a tope for the enclosed action.
 localTope :: Distinct n => TermT n -> TypeCheck n a -> TypeCheck n a
-localTope tope tc = do
+localTope = localTopeWith True
+
+-- | Assume a tope for the enclosed action, deciding whether the extended
+-- context is contradictory only when a judgement asks (the conversion fast
+-- path assumes a face or a guard for a comparison that rarely needs to
+-- know).
+localTopeLazily :: Distinct n => TermT n -> TypeCheck n a -> TypeCheck n a
+localTopeLazily = localTopeWith False
+
+localTopeWith :: Distinct n => Bool -> TermT n -> TypeCheck n a -> TypeCheck n a
+localTopeWith decideBottom tope tc = do
   ctx <- ask'
   tope' <- nfTope tope
   let modalTope' = plainTope tope'
@@ -365,7 +375,10 @@ localTope tope tc = do
   if noNewInformation
     then tc
     else do
-      entailsBottom <- (modalTope' : ctxTopesNF ctx) `entailM` topeBottomT
+      entailsBottom <-
+        if decideBottom
+          then Just <$> (modalTope' : ctxTopesNF ctx) `entailM` topeBottomT
+          else pure Nothing
       withRefreshedTopes (extend modalTope' entailsBottom) tc
   where
     ask' = asks id
@@ -376,7 +389,7 @@ localTope tope tc = do
           [ new <> old
           | new <- simplifyLHSwithDisjunctions [tope']
           , old <- ctxTopesNFUnion ctx ]
-      , ctxTopesEntailBottom = Just entailsBottom
+      , ctxTopesEntailBottom = entailsBottom
       }
 
 -- | Install a deferred saturation cache for the transformed context, and run the

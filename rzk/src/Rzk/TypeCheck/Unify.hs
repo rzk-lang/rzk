@@ -25,11 +25,13 @@ import           Language.Rzk.Foil.Syntax
 import           Language.Rzk.Foil.Names (Binder, TModality (..),
                                            TypeInfo (..))
 import           Rzk.TypeCheck.Context
-import           Rzk.TypeCheck.Display (panicImpossible)
+import           Rzk.TypeCheck.Display (namingOfContext, panicImpossible,
+                                        ppTerm)
 import           Rzk.TypeCheck.Error
 import           Rzk.TypeCheck.Eval
 import           Rzk.TypeCheck.Monad
-import           Rzk.TypeCheck.NbE (Conversion (..), nbeConvertible)
+import           Rzk.TypeCheck.NbE       (Conversion (..), nbeConvertible,
+                                          nbeDifferential)
 
 -- | Open two scoped terms under /one/ binder, so that the two sides of a
 -- comparison are compared as functions of the same variable.
@@ -80,9 +82,22 @@ unifyTopes l r = do
 unify
   :: Distinct n
   => Maybe (TermT n) -> TermT n -> TermT n -> TypeCheck n ()
-unify mterm expected actual = performUnification `catchError` \typeError -> do
-  inAllSubContexts (throwError typeError) performUnification
+unify mterm expected actual = asks ctxFastPath >>= \case
+  -- The differential test: both fast paths answer, the unification decides,
+  -- and a generic answer the unification rejects is reported.
+  FastPathCheck -> do
+    (generic, _spine) <- nbeDifferential expected actual
+    search `catchError` \typeError -> do
+      when (generic == Convertible) $ do
+        naming <- asks namingOfContext
+        loc <- asks ctxLocation
+        recordCheckWarning $ NbEUnsoundWarning
+          (ppTerm naming (untyped expected)) (ppTerm naming (untyped actual)) loc
+      throwError typeError
+  _ -> search
   where
+    search = performUnification `catchError` \typeError ->
+      inAllSubContexts (throwError typeError) performUnification
     performUnification = unifyInCurrentContext mterm expected actual
 
 -- | The syntactic fast path.
